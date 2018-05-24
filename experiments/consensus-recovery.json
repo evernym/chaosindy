@@ -1,0 +1,85 @@
+{
+    "version": "1.0.0",
+    "title": "Induce failure with high load",
+    "description": "Kill f random nodes to cause the cluster to fall out of consensus, test, bring one node back, and test",
+    "tags": [
+        "service",
+        "indy-node",
+        "concensus"
+    ],
+    "configuration": {
+        "seed": "{{ seed }}",
+        "validator_nodes": "{{ validator_nodes }}",
+        "kill_count": "{{ kill_count }}",
+        "up_count": "{{ up_count }}" 
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaos.probes",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "kill-random-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaos.actions",
+                "func": "kill_random_nodes",
+                "arguments": {
+                    "nodes": "${validator_nodes}",
+                    "count": "${kill_count}"
+                }
+            },
+            "pauses": {
+                "after": 10
+            }
+        },
+        {
+            "type": "probe",
+            "name": "cannot-write-nym",
+            "tolerance": false,
+            "provider": {
+                "type": "python",
+                "module": "chaos.probes",
+                "func": "write_nym",
+                "arguments": {
+                    "seed": "${seed}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "ensure-nodes-up",
+            "provider": {
+                "type": "python",
+                "module": "chaos.actions",
+                "func": "ensure_nodes_up",
+                "arguments": {
+                    "nodes": "${validator_nodes}",
+                    "count": "${up_count}"
+                }
+            },
+            "pauses": {
+                "after": 10
+            }
+        },
+        {
+            "ref": "can-write-nym"
+        }
+    ],
+    "rollbacks": []
+}
