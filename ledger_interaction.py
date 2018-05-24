@@ -1,6 +1,7 @@
 import json
 
 from indy import ledger, did, wallet, pool
+from indy.error import IndyError
 
 pool_name = 'pool1'
 pool_genesis_txn_path = '/home/lovesh/dev/chaos/pool_transactions_genesis'
@@ -14,7 +15,10 @@ async def write_nym_and_check(seed=None):
     
     print('# 1. Create ledger config from genesis txn file')
     pool_config = json.dumps({"genesis_txn": str(pool_genesis_txn_path)})
-    await pool.create_pool_ledger_config(pool_name, pool_config)
+    try:
+        await pool.create_pool_ledger_config(pool_name, pool_config)
+    except IndyError as e:
+        pass
 
     print(pool_config)
 
