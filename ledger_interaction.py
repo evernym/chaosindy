@@ -11,7 +11,6 @@ seed_trustee1 = '000000000000000000000000Trustee1'
 async def write_nym_and_check(seed=None):
     if seed is None:
         seed = seed_trustee1
-
     
     print('# 1. Create ledger config from genesis txn file')
     pool_config = json.dumps({"genesis_txn": str(pool_genesis_txn_path)})
