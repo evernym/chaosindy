@@ -1,0 +1,54 @@
+import json
+
+from indy import ledger, did, wallet, pool
+
+pool_name = 'pool1'
+pool_genesis_txn_path = '/home/lovesh/dev/chaos/pool_transactions_genesis'
+seed_trustee1 = '000000000000000000000000Trustee1'
+
+
+async def write_nym_and_check(seed=None):
+    if seed is None:
+        seed = seed_trustee1
+
+    
+    print('# 1. Create ledger config from genesis txn file')
+    pool_config = json.dumps({"genesis_txn": str(pool_genesis_txn_path)})
+    await pool.create_pool_ledger_config(pool_name, pool_config)
+
+    print(pool_config)
+
+    pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
+
+    await wallet.create_wallet(pool_name, 'my_wallet', None, None, None)
+    my_wallet_handle = await wallet.open_wallet('my_wallet', None, None)
+
+    print('# 4. Create Their Wallet and Get Wallet Handle')
+    await wallet.create_wallet(pool_name, 'their_wallet', None, None, None)
+    their_wallet_handle = await wallet.open_wallet('their_wallet', None, None)
+
+    print('# 5. Create My DID')
+    (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
+
+    print('# 6. Create Their DID from Trustee1 seed')
+    (their_did, their_verkey) = await did.create_and_store_my_did(their_wallet_handle,
+                                                                  json.dumps({"seed": seed_trustee1}))
+
+    await did.store_their_did(my_wallet_handle, json.dumps({'did': their_did, 'verkey': their_verkey}))
+
+    print('# 8. Prepare and send NYM transaction')
+    nym_txn_req = await ledger.build_nym_request(their_did, my_did, None, None, None)
+    await ledger.sign_and_submit_request(pool_handle, their_wallet_handle, their_did, nym_txn_req)
+
+    print('# 9. Prepare and send GET_NYM request')
+    get_nym_txn_req = await ledger.build_get_nym_request(their_did, my_did)
+    get_nym_txn_resp = await ledger.submit_request(pool_handle, get_nym_txn_req)
+
+    get_nym_txn_resp = json.loads(get_nym_txn_resp)
+
+    assert get_nym_txn_resp['result']['dest'] == my_did
+
+    # 10. Close wallets and pool
+    await wallet.close_wallet(their_wallet_handle)
+    await wallet.close_wallet(my_wallet_handle)
+    await pool.close_pool_ledger(pool_handle)
