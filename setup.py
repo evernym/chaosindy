@@ -9,7 +9,7 @@ author = "Evernym"
 author_email = 'devin.fisher@evernym.com'
 
 packages = [
-    'chaostoolkit_indy'
+    'chaosindy'
 ]
 
 test_require = []

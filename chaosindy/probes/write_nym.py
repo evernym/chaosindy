@@ -1,5 +1,5 @@
-from chaos.ledger_interaction import write_nym_and_check
-from chaos.helpers import run
+from chaosindy.ledger_interaction import write_nym_and_check
+from chaosindy.helpers import run
 
 
 if __name__ == "__main__":
