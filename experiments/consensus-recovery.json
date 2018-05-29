@@ -1,17 +1,33 @@
 {
     "version": "1.0.0",
-    "title": "Induce failure with high load",
-    "description": "Kill f random nodes to cause the cluster to fall out of consensus, test, bring one node back, and test",
+    "title": "Induce consensus failure and recovery by removing and then restoring a sufficient number of nodes",
+    "description": "Kill f random nodes to cause the cluster to fall out of consensus, test to ensure the cluster is out of consensus, bring one node back, and re-test; expecting the cluster to be in consensus. Note that CHAOS_VALIDATOR_NODES must be an environment variable containing a string that is a valid JSON list of node aliases as defined in CHAOS_GENESIS_FILE.",
     "tags": [
         "service",
         "indy-node",
         "concensus"
     ],
     "configuration": {
-        "seed": "{{ seed }}",
-        "validator_nodes": "{{ validator_nodes }}",
-        "kill_count": "{{ kill_count }}",
-        "up_count": "{{ up_count }}" 
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "validator_nodes": {
+            "type": "env",
+            "key": "CHAOS_VALIDATOR_NODES"
+        },
+        "kill_count": {
+            "type": "env",
+            "key": "CHAOS_KILL_COUNT"
+        },
+        "up_count": {
+            "type": "env",
+            "key": "CHAOS_UP_COUNT"
+        },
     },
     "steady-state-hypothesis": {
         "title": "Can write nym",
@@ -25,7 +41,8 @@
                     "module": "chaos.probes",
                     "func": "write_nym",
                     "arguments": {
-                        "seed": "${seed}"
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}"
                     }
                 }
             }
@@ -41,7 +58,8 @@
                 "func": "kill_random_nodes",
                 "arguments": {
                     "nodes": "${validator_nodes}",
-                    "count": "${kill_count}"
+                    "count": "${kill_count}",
+                    "genesis_file": "${genesis_file}"
                 }
             },
             "pauses": {
@@ -57,7 +75,8 @@
                 "module": "chaos.probes",
                 "func": "write_nym",
                 "arguments": {
-                    "seed": "${seed}"
+                    "seed": "${seed}",
+                    "genesis_file": "${genesis_file}"
                 }
             }
         },
@@ -70,15 +89,13 @@
                 "func": "ensure_nodes_up",
                 "arguments": {
                     "nodes": "${validator_nodes}",
-                    "count": "${up_count}"
+                    "count": "${up_count}",
+                    "genesis_file": "${genesis_file}"
                 }
             },
             "pauses": {
                 "after": 10
             }
-        },
-        {
-            "ref": "can-write-nym"
         }
     ],
     "rollbacks": []
