@@ -38,7 +38,7 @@
                 "tolerance": true,
                 "provider": {
                     "type": "python",
-                    "module": "chaos.probes",
+                    "module": "chaosindy.probes",
                     "func": "write_nym",
                     "arguments": {
                         "seed": "${seed}",
@@ -54,7 +54,7 @@
             "name": "kill-random-nodes",
             "provider": {
                 "type": "python",
-                "module": "chaos.actions",
+                "module": "chaosindy.actions",
                 "func": "kill_random_nodes",
                 "arguments": {
                     "nodes": "${validator_nodes}",
@@ -72,7 +72,7 @@
             "tolerance": false,
             "provider": {
                 "type": "python",
-                "module": "chaos.probes",
+                "module": "chaosindy.probes",
                 "func": "write_nym",
                 "arguments": {
                     "seed": "${seed}",
@@ -85,7 +85,7 @@
             "name": "ensure-nodes-up",
             "provider": {
                 "type": "python",
-                "module": "chaos.actions",
+                "module": "chaosindy.actions",
                 "func": "ensure_nodes_up",
                 "arguments": {
                     "nodes": "${validator_nodes}",
