@@ -13,12 +13,12 @@ Result = namedtuple('Result', ['return_code', 'stdout', 'stderr'])
 class RemoteExecutor(object):
     __metaclass__ = abc.ABCMeta
 
-    def execute(self, host: str, action: str, user: str=None, **kwargs):
-        rtn = self._execute_on_host(host, action, user=user, **kwargs)
+    def execute(self, host: str, action: str, user: str=None, as_sudo=False, **kwargs):
+        rtn = self._execute_on_host(host, action, user=user, as_sudo=as_sudo, **kwargs)
         return rtn
 
     @abc.abstractmethod
-    def _execute_on_host(self, host: str, action: str, user: str=None) -> str:
+    def _execute_on_host(self, host: str, action: str, user: str=None, as_sudo=False) -> str:
         raise NotImplementedError('users must define __str__ to use this base class')
 
 
@@ -52,7 +52,7 @@ class FabricExecutor(RemoteExecutor):
         else:
             raise OSError("Unable to access the file (not readable) -- %s -- '%s'" % (file_kind, path))
 
-    def _execute_on_host(self, host: str, action: str, user: str=None, identity_file=None) -> str:
+    def _execute_on_host(self, host: str, action: str, user: str=None, as_sudo=False, identity_file=None) -> str:
         connect_kwargs = {}
 
         if identity_file:
@@ -62,13 +62,17 @@ class FabricExecutor(RemoteExecutor):
         if not connect_kwargs:
             connect_kwargs = None
         try:
-            rtn = self._do_execute_on_host(host, action, user=user, connect_kwargs= connect_kwargs)
+            rtn = self._do_execute_on_host(host, action, user=user, as_sudo=as_sudo, connect_kwargs= connect_kwargs)
         except AuthenticationException as e:
             raise e
 
         return rtn
 
-    def _do_execute_on_host(self, host, action, user=None, connect_kwargs=None):
-        rtn = Connection(host, config=self.config, user=user, connect_kwargs=connect_kwargs).sudo(action)
+    def _do_execute_on_host(self, host, action, user=None, as_sudo=False, connect_kwargs=None):
+        c = Connection(host, config=self.config, user=user, connect_kwargs=connect_kwargs)
+        if as_sudo:
+            rtn = c.sudo(action)
+        else:
+            rtn = c.run(action)
         return Result(rtn.return_code, rtn.stdout, rtn.stderr)
 
