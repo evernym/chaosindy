@@ -16,9 +16,9 @@
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
         },
-        "validator_nodes": {
+        "write_nym_timeout": {
             "type": "env",
-            "key": "CHAOS_VALIDATOR_NODES"
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
         },
         "kill_count": {
             "type": "env",
@@ -27,22 +27,39 @@
         "up_count": {
             "type": "env",
             "key": "CHAOS_UP_COUNT"
-        },
+        }
     },
     "steady-state-hypothesis": {
         "title": "Can write nym",
         "probes": [
             {
                 "type": "probe",
+                "name": "all-nodes-are-up",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.all_nodes_up",
+                    "func": "all_nodes_up",
+                    "arguments": {
+                        "genesis_file": "${genesis_file}"
+                    }
+                }
+            },
+            {
+                "type": "probe",
                 "name": "can-write-nym",
                 "tolerance": true,
                 "provider": {
                     "type": "python",
-                    "module": "chaosindy.probes",
+                    "module": "chaosindy.probes.write_nym",
                     "func": "write_nym",
                     "arguments": {
                         "seed": "${seed}",
-                        "genesis_file": "${genesis_file}"
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "consensus_recovery_pool1",
+                        "my_wallet_name": "consensus_recovery_my_wallet1",
+                        "their_wallet_name": "consensus_recovery_their_wallet1",
+                        "timeout": "10"
                     }
                 }
             }
@@ -54,16 +71,15 @@
             "name": "kill-random-nodes",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions",
+                "module": "chaosindy.actions.kill_random_nodes",
                 "func": "kill_random_nodes",
                 "arguments": {
-                    "nodes": "${validator_nodes}",
-                    "count": "${kill_count}",
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "count": "${kill_count}"
                 }
             },
             "pauses": {
-                "after": 10
+                "after": 5
             }
         },
         {
@@ -72,11 +88,15 @@
             "tolerance": false,
             "provider": {
                 "type": "python",
-                "module": "chaosindy.probes",
+                "module": "chaosindy.probes.write_nym",
                 "func": "write_nym",
                 "arguments": {
                     "seed": "${seed}",
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "pool_name": "consensus_recovery_pool2",
+                    "my_wallet_name": "consensus_recovery_my_wallet2",
+                    "their_wallet_name": "consensus_recovery_their_wallet2",
+                    "timeout": "${write_nym_timeout}"
                 }
             }
         },
@@ -85,18 +105,30 @@
             "name": "ensure-nodes-up",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions",
+                "module": "chaosindy.actions.ensure_nodes_up",
                 "func": "ensure_nodes_up",
                 "arguments": {
-                    "nodes": "${validator_nodes}",
-                    "count": "${up_count}",
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "count": "${up_count}"
                 }
             },
             "pauses": {
-                "after": 10
+                "after": 5
             }
         }
     ],
-    "rollbacks": []
+    "rollbacks": [
+        {
+            "type": "probe",
+            "name": "all-nodes-up",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.all_nodes_up",
+                "func": "all_nodes_up",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        }
+    ]
 }
