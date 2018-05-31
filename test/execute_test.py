@@ -57,7 +57,7 @@ class ExecuteTests(unittest.TestCase):
             rtn = executor.execute('18.228.29.163', 'echo "devin"')
             self.assertEqual(rtn.return_code, 0)
 
-    @unittest.skip("Works agains a real server that may not exists")
+    @unittest.skip("Works against a real server that may not exists")
     def test_not_unit_test(self):
         ssh_config = """Host 18.228.29.163
   User ubuntu
@@ -68,3 +68,15 @@ class ExecuteTests(unittest.TestCase):
 
             executor = FabricExecutor(ssh_config_file=f.name)
             executor.execute('18.228.29.163', 'echo "devin"', as_sudo=True)
+
+    @unittest.skip("Works against a real server that may not exists")
+    def test_not_unit_test2(self):
+        ssh_config = """Host 18.228.29.163
+  User ubuntu
+  IdentityFile /home/devin/temp/B6/Evernym-QA-New/sa-east-1-sao-paulo/Evernym-QA-Pool.pem"""
+        with tempfile.NamedTemporaryFile(mode='w') as f:
+            f.write(ssh_config)
+            f.flush()
+
+            executor = FabricExecutor(ssh_config_file=f.name)
+            executor.execute_all(['18.228.29.163', '18.228.29.163'], 'echo "devin"', as_sudo=False)
