@@ -4,7 +4,8 @@ import tempfile
 from chaosindy.execute.execute import *
 
 def noop_do_execute(*args, **kwargs):
-    return Result(return_code=0, stdout='devin\n', stderr='')
+    # return Result(return_code=0, stdout='devin\n', stderr='')
+    args[0].put(Result(return_code=0, stdout='devin\n', stderr=''))
 
 
 class ExecuteTests(unittest.TestCase):
@@ -38,14 +39,14 @@ class ExecuteTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w') as f:
             f.write("")
             f.flush()
-            rtn = executor.execute('18.228.29.163',
+            rtn = executor.execute('Node1',
                              'echo "devin"',
                              user='ubuntu',
                              identity_file=f.name)
             self.assertEqual(rtn.return_code, 0)
 
     def test_ssh_config(self):
-        ssh_config = """Host 18.228.29.163
+        ssh_config = """Host Node1
   User ubuntu
   IdentityFile /tmp/QA-Pool.pem"""
         with tempfile.NamedTemporaryFile(mode='w') as f:
@@ -54,24 +55,74 @@ class ExecuteTests(unittest.TestCase):
 
             executor = FabricExecutor(ssh_config_file=f.name)
             executor._do_execute_on_host = noop_do_execute
-            rtn = executor.execute('18.228.29.163', 'echo "devin"')
+            rtn = executor.execute('Node1', 'echo "devin"')
             self.assertEqual(rtn.return_code, 0)
 
     @unittest.skip("Works against a real server that may not exists")
     def test_not_unit_test(self):
-        ssh_config = """Host 18.228.29.163
-  User ubuntu
-  IdentityFile /home/devin/temp/B6/Evernym-QA-New/sa-east-1-sao-paulo/Evernym-QA-Pool.pem"""
+        ssh_config = """Host Node1
+    User ubuntu
+    Hostname Node1
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/sa-east-1-sao-paulo/Evernym-QA-Pool.pem
+Host Node2
+    User ubuntu
+    Hostname 52.209.71.171
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/eu-west-1-ireland/Evernym-QA-Pool.pem
+Host Node3
+    User ubuntu
+    Hostname 35.178.118.86
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/eu-west-2-london/Evernym-QA-Pool.pem
+Host Node4
+    User ubuntu
+    Hostname 52.78.149.162
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/ap-northeast-2-seoul/Evernym-QA-Pool.pem
+Host Node5
+    User ubuntu
+    Hostname 52.13.205.56
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/us-west-2-oregon/Evernym-QA-Pool.pem
+Host Node6
+    User ubuntu
+    Hostname 54.241.204.174
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/us-west-1-california/Evernym-QA-Pool.pem
+Host Node7
+    User ubuntu
+    Hostname 18.188.154.146
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/us-east-2-ohio/Evernym-QA-Pool.pem
+Host Node8
+    User ubuntu
+    Hostname 35.177.252.115
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/eu-west-2-london/Evernym-QA-Pool.pem
+Host Node9
+    User ubuntu
+    Hostname 52.58.108.102
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/eu-central-1-frankfurt/Evernym-QA-Pool.pem
+Host Node10
+    User ubuntu
+    Hostname 13.125.23.229
+    IdentityFile /home/devin/temp/B6/Evernym-QA-New/ap-northeast-2-seoul/Evernym-QA-Pool.pem"""
         with tempfile.NamedTemporaryFile(mode='w') as f:
             f.write(ssh_config)
             f.flush()
 
             executor = FabricExecutor(ssh_config_file=f.name)
-            executor.execute('18.228.29.163', 'echo "devin"', as_sudo=True)
+            # executor.execute('Node1', 'echo "devin"', as_sudo=True)
+            executor.execute('Node2', 'echo "devin"', as_sudo=True)
+            executor.execute('Node3', 'echo "devin"', as_sudo=True)
+            executor.execute('Node4', 'echo "devin"', as_sudo=True)
+            executor.execute('Node5', 'echo "devin"', as_sudo=True)
+            executor.execute('Node6', 'echo "devin"', as_sudo=True)
+            executor.execute('Node7', 'echo "devin"', as_sudo=True)
+            executor.execute('Node8', 'echo "devin"', as_sudo=True)
+            executor.execute('Node9', 'echo "devin"', as_sudo=True)
+            executor.execute('Node10', 'echo "devin"', as_sudo=True)
+            # executor.execute('Node1', 'echo "devin"', as_sudo=True)
+            # executor.execute('Node1', 'echo "devin"', as_sudo=True)
+            # executor.execute('Node1', 'echo "devin"', as_sudo=True)
+            # executor.execute('Node1', 'echo "devin"', as_sudo=True)
 
     @unittest.skip("Works against a real server that may not exists")
     def test_not_unit_test2(self):
-        ssh_config = """Host 18.228.29.163
+        ssh_config = """Host Node1
   User ubuntu
   IdentityFile /home/devin/temp/B6/Evernym-QA-New/sa-east-1-sao-paulo/Evernym-QA-Pool.pem"""
         with tempfile.NamedTemporaryFile(mode='w') as f:
@@ -79,4 +130,4 @@ class ExecuteTests(unittest.TestCase):
             f.flush()
 
             executor = FabricExecutor(ssh_config_file=f.name)
-            executor.execute_all(['18.228.29.163', '18.228.29.163'], 'echo "devin"', as_sudo=False)
+            executor.execute_all(['Node1', 'Node1'], 'echo "devin"', as_sudo=False)

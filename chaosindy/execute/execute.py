@@ -3,6 +3,8 @@ import os
 
 from collections import namedtuple
 
+from multiprocessing import Process, Queue
+import time
 from fabric import Connection, Config, SerialGroup, Result
 from paramiko import AuthenticationException
 
@@ -28,6 +30,15 @@ class RemoteExecutor(object):
     def _execute_on_all_hosts(self, host: str, action: str, user: str=None, as_sudo=False) -> str:
         raise NotImplementedError('users must define _execute_on_all_hosts to use this base class')
 
+
+def _test_do_execute_on_host(q, host, action, config, user=None, as_sudo=False, connect_kwargs=None):
+    with Connection(host, config=config, user=user, connect_kwargs=connect_kwargs) as c:
+        if as_sudo:
+            rtn = c.sudo(action)
+        else:
+            rtn = c.run(action)
+
+        q.put(Result(rtn.return_code, rtn.stdout, rtn.stderr))
 
 class FabricExecutor(RemoteExecutor):
 
@@ -76,7 +87,12 @@ class FabricExecutor(RemoteExecutor):
         connect_kwargs = self._collect_connect_kwargs(identity_file)
 
         try:
-            rtn = self._do_execute_on_host(host, action, user=user, as_sudo=as_sudo, connect_kwargs= connect_kwargs)
+            q = Queue()
+            p = Process(target=_test_do_execute_on_host, args=(q, host, action, self.config), kwargs={'user':user, "as_sudo": as_sudo, "connect_kwargs": connect_kwargs})
+            # rtn = self._do_execute_on_host(host, action, user=user, as_sudo=as_sudo, connect_kwargs= connect_kwargs)
+            p.start()
+            rtn = q.get()
+            p.join()
         except AuthenticationException as e:
             raise e
 
@@ -93,12 +109,14 @@ class FabricExecutor(RemoteExecutor):
         return rtn
 
     def _do_execute_on_host(self, host, action, user=None, as_sudo=False, connect_kwargs=None):
-        c = Connection(host, config=self.config, user=user, connect_kwargs=connect_kwargs)
-        if as_sudo:
-            rtn = c.sudo(action)
-        else:
-            rtn = c.run(action)
-        return Result(rtn.return_code, rtn.stdout, rtn.stderr)
+        with Connection(host, config=self.config, user=user, connect_kwargs=connect_kwargs) as c:
+            if as_sudo:
+                rtn = c.sudo(action)
+            else:
+                rtn = c.run(action)
+            # c.close()
+            time.sleep(1)
+            return Result(rtn.return_code, rtn.stdout, rtn.stderr)
 
     def _do_execute_on_group(self, hosts: list, action, user=None, as_sudo=False, connect_kwargs=None):
         conn = []
