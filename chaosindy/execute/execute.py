@@ -29,13 +29,11 @@ class FabricExecutor(RemoteExecutor):
     def _multiprocess_execute_on_host(q, host, action, config, user=None, as_sudo=False, connect_kwargs=None):
         with Connection(host, config=config, user=user, connect_kwargs=connect_kwargs) as c:
             if as_sudo:
-                rtn = c.sudo(action)
+                rtn = c.sudo(action, hide=True)
             else:
-                rtn = c.run(action)
+                rtn = c.run(action, hide=True)
 
             q.put(Result(rtn.return_code, rtn.stdout, rtn.stderr))
-            # import time
-            # time.sleep(12)
 
     config = None
 
@@ -94,7 +92,7 @@ class FabricExecutor(RemoteExecutor):
             p.join(timeout=timeout)
             if p.is_alive():
                 raise Exception("Remote execution has exceeded timeout")
-            rtn = q.get(timeout=0)
+            rtn = q.get(timeout=0.1)
         except AuthenticationException as e:
             raise e
         except Empty:

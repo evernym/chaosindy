@@ -102,20 +102,20 @@
         },
         {
             "type": "action",
-            "name": "ensure-nodes-up",
+            "name": "ensure-all-nodes-up",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.ensure_nodes_up",
-                "func": "ensure_nodes_up",
+                "module": "chaosindy.actions.all_nodes_up",
+                "func": "all_nodes_up",
                 "arguments": {
-                    "genesis_file": "${genesis_file}",
-                    "count": "${up_count}"
+                    "genesis_file": "${genesis_file}"
                 }
             },
             "pauses": {
-                "after": 5
+                "after": 10
             }
         }
+
     ],
     "rollbacks": [
         {
