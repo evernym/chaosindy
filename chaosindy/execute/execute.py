@@ -4,8 +4,9 @@ import os
 from collections import namedtuple
 
 from multiprocessing import Process, Queue
-import time
-from fabric import Connection, Config, SerialGroup, Result
+from queue import Empty
+
+from fabric import Connection, Config
 from paramiko import AuthenticationException
 
 Result = namedtuple('Result', ['return_code', 'stdout', 'stderr'])
@@ -14,33 +15,27 @@ Result = namedtuple('Result', ['return_code', 'stdout', 'stderr'])
 class RemoteExecutor(object):
     __metaclass__ = abc.ABCMeta
 
-    def execute(self, host: str, action: str, user: str=None, as_sudo=False, **kwargs):
+    def execute(self, host: str, action: str, user: str = None, as_sudo=False, **kwargs):
         rtn = self._execute_on_host(host, action, user=user, as_sudo=as_sudo, **kwargs)
         return rtn
 
-    def execute_all(self, hosts: list, action: str, user: str=None, as_sudo=False, **kwargs):
-        rtn = self._execute_on_all_hosts(hosts, action, user=user, as_sudo=as_sudo, **kwargs)
-        return rtn
-
     @abc.abstractmethod
-    def _execute_on_host(self, host: str, action: str, user: str=None, as_sudo=False) -> str:
+    def _execute_on_host(self, host: str, action: str, user: str = None, as_sudo=False) -> str:
         raise NotImplementedError('users must define _execute_on_host to use this base class')
 
-    @abc.abstractmethod
-    def _execute_on_all_hosts(self, host: str, action: str, user: str=None, as_sudo=False) -> str:
-        raise NotImplementedError('users must define _execute_on_all_hosts to use this base class')
-
-
-def _test_do_execute_on_host(q, host, action, config, user=None, as_sudo=False, connect_kwargs=None):
-    with Connection(host, config=config, user=user, connect_kwargs=connect_kwargs) as c:
-        if as_sudo:
-            rtn = c.sudo(action)
-        else:
-            rtn = c.run(action)
-
-        q.put(Result(rtn.return_code, rtn.stdout, rtn.stderr))
 
 class FabricExecutor(RemoteExecutor):
+    @staticmethod
+    def _multiprocess_execute_on_host(q, host, action, config, user=None, as_sudo=False, connect_kwargs=None):
+        with Connection(host, config=config, user=user, connect_kwargs=connect_kwargs) as c:
+            if as_sudo:
+                rtn = c.sudo(action)
+            else:
+                rtn = c.run(action)
+
+            q.put(Result(rtn.return_code, rtn.stdout, rtn.stderr))
+            # import time
+            # time.sleep(12)
 
     config = None
 
@@ -71,7 +66,8 @@ class FabricExecutor(RemoteExecutor):
         else:
             raise OSError("Unable to access the file (not readable) -- %s -- '%s'" % (file_kind, path))
 
-    def _collect_connect_kwargs(self, identity_file):
+    @staticmethod
+    def _collect_connect_kwargs(identity_file):
         connect_kwargs = {}
 
         if identity_file:
@@ -83,55 +79,28 @@ class FabricExecutor(RemoteExecutor):
 
         return connect_kwargs
 
-    def _execute_on_host(self, host: str, action: str, user: str=None, as_sudo=False, identity_file=None) -> str:
+    def _execute_on_host(self, host: str, action: str, user: str = None, as_sudo=False, identity_file=None,
+                         timeout=10) -> str:
         connect_kwargs = self._collect_connect_kwargs(identity_file)
 
+        p = None
+        q = Queue()
         try:
-            q = Queue()
-            p = Process(target=_test_do_execute_on_host, args=(q, host, action, self.config), kwargs={'user':user, "as_sudo": as_sudo, "connect_kwargs": connect_kwargs})
-            # rtn = self._do_execute_on_host(host, action, user=user, as_sudo=as_sudo, connect_kwargs= connect_kwargs)
+            # Running execution in a subprocess - Did this to avoid errors in paramiko clean up.
+            p = Process(target=FabricExecutor._multiprocess_execute_on_host,
+                        args=(q, host, action, self.config),
+                        kwargs={'user': user, "as_sudo": as_sudo, "connect_kwargs": connect_kwargs})
             p.start()
-            rtn = q.get()
-            p.join()
+            p.join(timeout=timeout)
+            if p.is_alive():
+                raise Exception("Remote execution has exceeded timeout")
+            rtn = q.get(timeout=0)
         except AuthenticationException as e:
             raise e
+        except Empty:
+            raise Exception("Remote execution did not provide results")
+        finally:
+            if p:
+                p.terminate()
 
         return rtn
-
-    def _execute_on_all_hosts(self, hosts: list, action: str, user: str = None, as_sudo=False, identity_file=None) -> str:
-        connect_kwargs = self._collect_connect_kwargs(identity_file)
-
-        try:
-            rtn = self._do_execute_on_group(hosts, action, user=user, as_sudo=as_sudo, connect_kwargs= connect_kwargs)
-        except AuthenticationException as e:
-            raise e
-
-        return rtn
-
-    def _do_execute_on_host(self, host, action, user=None, as_sudo=False, connect_kwargs=None):
-        with Connection(host, config=self.config, user=user, connect_kwargs=connect_kwargs) as c:
-            if as_sudo:
-                rtn = c.sudo(action)
-            else:
-                rtn = c.run(action)
-            # c.close()
-            time.sleep(1)
-            return Result(rtn.return_code, rtn.stdout, rtn.stderr)
-
-    def _do_execute_on_group(self, hosts: list, action, user=None, as_sudo=False, connect_kwargs=None):
-        conn = []
-        for host in hosts:
-            conn.append(Connection(host, config=self.config, user=user, connect_kwargs=connect_kwargs))
-        g = SerialGroup.from_connections(conn)
-        if as_sudo:
-            raise NotImplementedError("Not implemented for group commands (blame fabric) -- try adding sudo to command")
-            # results = g.sudo(action)
-        else:
-            results = g.run(action)
-
-        rtn = {}
-        for connection, result in results.items():
-            rtn[connection] = Result(result.return_code, result.stdout, result.stderr)
-
-        return rtn
-
