@@ -3,6 +3,8 @@ import json
 from indy import ledger, did, wallet, pool
 from indy.error import IndyError
 
+from logzero import logger
+
 default_pool_name = 'pool1'
 default_my_wallet_name = 'my_wallet1'
 default_their_wallet_name = 'their_wallet1'
@@ -28,23 +30,26 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     if genesis_file is None:
         genesis_file = pool_genesis_txn_path
 
-    print('# 1. Create ledger config from genesis txn file')
+    logger.debug('# 1. Create ledger config from genesis txn file')
     pool_config = json.dumps({"genesis_txn": str(genesis_file)})
-    print("pool_name:", pool_name)
-    print("pool_config:", pool_config)
+    logger.debug("pool_name: %s", pool_name)
+    logger.debug("pool_config: %s", pool_config)
     #await pool.create_pool_ledger_config(pool_name, pool_config)
     try:
+        import pdb; pdb.set_trace()
         await pool.create_pool_ledger_config(pool_name, pool_config)
     except IndyError as e:
-        print("Handled IndyError:", e)
+        logger.info("Handled IndyError")
+        logger.exception(e)
         pass
 
-    print("pool_config:", pool_config)
+    logger.debug("pool_config: %s", pool_config)
     pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
     #try:
     #    pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
     #except IndyError as e:
-    #    print("Handled IndyError:", e)
+    #    logger.info("Handled IndyError")
+    #    logger.exception(e)
     #    pool_handle = pool.
     #    pass
 
@@ -52,36 +57,38 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     try:
         await wallet.create_wallet(pool_name, my_wallet_name, None, None, None)
     except IndyError as e:
-        print("Handled IndyError:", e)
+        logger.info("Handled IndyError")
+        logger.exception(e)
         pass
 
     my_wallet_handle = await wallet.open_wallet(my_wallet_name, None, None)
 
-    print('# 4. Create Their Wallet and Get Wallet Handle')
+    logger.debug('# 4. Create Their Wallet and Get Wallet Handle')
 
     #await wallet.create_wallet(pool_name, their_wallet_name, None, None, None)
     try:
         await wallet.create_wallet(pool_name, their_wallet_name, None, None, None)
     except IndyError as e:
-        print("Handled IndyError:", e)
+        logger.info("Handled IndyError")
+        logger.info(e)
         pass
 
     their_wallet_handle = await wallet.open_wallet(their_wallet_name, None, None)
 
-    print('# 5. Create My DID')
+    logger.debug('# 5. Create My DID')
     (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
 
-    print('# 6. Create Their DID from Trustee1 seed')
+    logger.debug('# 6. Create Their DID from Trustee1 seed')
     (their_did, their_verkey) = await did.create_and_store_my_did(their_wallet_handle,
                                                                   json.dumps({"seed": seed_trustee1}))
 
     await did.store_their_did(my_wallet_handle, json.dumps({'did': their_did, 'verkey': their_verkey}))
 
-    print('# 8. Prepare and send NYM transaction')
+    logger.debug('# 8. Prepare and send NYM transaction')
     nym_txn_req = await ledger.build_nym_request(their_did, my_did, None, None, None)
     await ledger.sign_and_submit_request(pool_handle, their_wallet_handle, their_did, nym_txn_req)
 
-    print('# 9. Prepare and send GET_NYM request')
+    logger.debug('# 9. Prepare and send GET_NYM request')
     get_nym_txn_req = await ledger.build_get_nym_request(their_did, my_did)
     get_nym_txn_resp = await ledger.submit_request(pool_handle, get_nym_txn_req)
 

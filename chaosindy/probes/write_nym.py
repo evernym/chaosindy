@@ -3,11 +3,12 @@ import sys
 
 from chaosindy.ledger_interaction import write_nym_and_check
 from chaosindy.helpers import run
+from logzero import logger
 
 
 def write_nym(seed, genesis_file, pool_name=None, my_wallet_name=None,
               their_wallet_name=None, timeout=60):
-    print("seed:", seed, "genesis_file:", genesis_file)
+    logger.debug("seed: %s genesis_file: %s", seed, genesis_file)
     return run(write_nym_and_check, seed=seed, pool_name=pool_name,
                my_wallet_name=my_wallet_name,
                their_wallet_name=their_wallet_name, genesis_file=genesis_file,

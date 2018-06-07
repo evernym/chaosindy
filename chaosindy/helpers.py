@@ -1,4 +1,5 @@
 import asyncio
+from logzero import logger
 
 
 def run(callable, timeout, *args, **kwargs):
@@ -6,7 +7,7 @@ def run(callable, timeout, *args, **kwargs):
     try:
         loop.run_until_complete(asyncio.wait_for(callable(*args, **kwargs), timeout=timeout))
     except asyncio.TimeoutError:
-        print("Call to", callable, "timed out!!!")
+        logger.error("Call to %s timed out!!!", callable)
         return False
     return True
     #loop.run_until_complete(callable(*args, **kwargs))

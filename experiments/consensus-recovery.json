@@ -71,7 +71,7 @@
             "name": "kill-random-nodes",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.kill_random_nodes",
+                "module": "chaosindy.actions.node",
                 "func": "kill_random_nodes",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
@@ -105,7 +105,7 @@
             "name": "ensure-all-nodes-up",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.all_nodes_up",
+                "module": "chaosindy.actions.node",
                 "func": "all_nodes_up",
                 "arguments": {
                     "genesis_file": "${genesis_file}"
@@ -123,7 +123,7 @@
             "name": "all-nodes-up",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.all_nodes_up",
+                "module": "chaosindy.actions.node",
                 "func": "all_nodes_up",
                 "arguments": {
                     "genesis_file": "${genesis_file}"

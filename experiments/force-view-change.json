@@ -1,0 +1,91 @@
+{
+    "version": "1.0.0",
+    "title": "Force View Change",
+    "description": "Reach steady state (can write a nym), discover which node is the master, stop the master (stop indy-node service) on that node to force a view change, wait a reasonable amount of time for the view change to complete, verify another node has been selected as the new master, bring up the old master, and then ensure the cluster is still in consensus (can write a nym). This experiment can be repeated to 'chase the master'.",
+    "tags": [
+        "service",
+        "indy-node",
+        "concensus"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+        "cleanup": {
+            "type": "env",
+            "key": "CHAOS_CLEANUP"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "fvc_pool1",
+                        "my_wallet_name": "fvc_my_wallet1",
+                        "their_wallet_name": "fvc_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "stop-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "stop_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-all-but-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_all_but_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "cleanup-validator-info",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.validator_info",
+                "func": "delete_validator_info",
+                "arguments": {
+                    "cleanup": "${cleanup}"
+                }
+            }
+        }
+    ]
+}

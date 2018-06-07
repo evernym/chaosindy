@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+# Pass parameters to experiment via the environment
+export CHAOS_SEED=000000000000000000000000Trustee1
+export CHAOS_GENESIS_FILE=/home/ubuntu/chaos-helpers/pool_transactions_genesis
+export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_WRITE_NYM_TIMEOUT=30
+#export CHAOS_CLEANUP=no
+export CHAOS_CLEANUP=
+
+echo CHAOS_SEED=${CHAOS_SEED}
+echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
+echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
+echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
+echo PYTHONPATH=${PYTHONPATH}
+
+# Run the experiment
+chaos --verbose run ./experiments/force-view-change.json
