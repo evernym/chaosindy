@@ -8,6 +8,7 @@ from logzero import logger
 default_pool_name = 'pool1'
 default_my_wallet_name = 'my_wallet1'
 default_their_wallet_name = 'their_wallet1'
+wallet_credentials = json.dumps({"key": "wallet"})
 pool_genesis_txn_path = '/home/lovesh/dev/chaos/pool_transactions_genesis'
 seed_trustee1 = '000000000000000000000000Trustee1'
 
@@ -34,9 +35,7 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     pool_config = json.dumps({"genesis_txn": str(genesis_file)})
     logger.debug("pool_name: %s", pool_name)
     logger.debug("pool_config: %s", pool_config)
-    #await pool.create_pool_ledger_config(pool_name, pool_config)
     try:
-        import pdb; pdb.set_trace()
         await pool.create_pool_ledger_config(pool_name, pool_config)
     except IndyError as e:
         logger.info("Handled IndyError")
@@ -45,35 +44,26 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
 
     logger.debug("pool_config: %s", pool_config)
     pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
-    #try:
-    #    pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
-    #except IndyError as e:
-    #    logger.info("Handled IndyError")
-    #    logger.exception(e)
-    #    pool_handle = pool.
-    #    pass
 
-    #await wallet.create_wallet(pool_name, my_wallet_name, None, None, None)
     try:
-        await wallet.create_wallet(pool_name, my_wallet_name, None, None, None)
+        await wallet.create_wallet(pool_name, my_wallet_name, None, None, wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
         logger.exception(e)
         pass
 
-    my_wallet_handle = await wallet.open_wallet(my_wallet_name, None, None)
+    my_wallet_handle = await wallet.open_wallet(my_wallet_name, None, wallet_credentials)
 
     logger.debug('# 4. Create Their Wallet and Get Wallet Handle')
 
-    #await wallet.create_wallet(pool_name, their_wallet_name, None, None, None)
     try:
-        await wallet.create_wallet(pool_name, their_wallet_name, None, None, None)
+        await wallet.create_wallet(pool_name, their_wallet_name, None, None, wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
         logger.info(e)
         pass
 
-    their_wallet_handle = await wallet.open_wallet(their_wallet_name, None, None)
+    their_wallet_handle = await wallet.open_wallet(their_wallet_name, None, wallet_credentials)
 
     logger.debug('# 5. Create My DID')
     (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
@@ -99,4 +89,7 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     # 10. Close wallets and pool
     await wallet.close_wallet(their_wallet_handle)
     await wallet.close_wallet(my_wallet_handle)
+    await wallet.delete_wallet(their_wallet_name, wallet_credentials)
+    await wallet.delete_wallet(my_wallet_name, wallet_credentials)
     await pool.close_pool_ledger(pool_handle)
+    await pool.delete_pool_ledger_config(pool_name)

@@ -41,7 +41,7 @@ def get_validator_info(genesis_file, ssh_config_file="~/.ssh/config"):
     aliases = []
     with open(expanduser(genesis_file), 'r') as genesisfile:
         for line in genesisfile:
-            aliases.append(json.loads(line)['data']['alias'])
+            aliases.append(json.loads(line)['txn']['data']['data']['alias'])
     logger.debug(str(aliases))
 
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
@@ -77,7 +77,7 @@ def detect_primary(genesis_file, ssh_config_file="~/.ssh/config"):
     aliases = []
     with open(expanduser(genesis_file), 'r') as genesisfile:
         for line in genesisfile:
-            aliases.append(json.loads(line)['data']['alias'])
+            aliases.append(json.loads(line)['txn']['data']['data']['alias'])
     logger.debug(str(aliases))
 
     # 3. Get primary from each nodes validator-info

@@ -38,7 +38,7 @@
                 "tolerance": true,
                 "provider": {
                     "type": "python",
-                    "module": "chaosindy.probes.all_nodes_up",
+                    "module": "chaosindy.actions.node",
                     "func": "all_nodes_up",
                     "arguments": {
                         "genesis_file": "${genesis_file}"
