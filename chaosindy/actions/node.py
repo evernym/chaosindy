@@ -10,12 +10,15 @@ from logzero import logger
 # intended to promote code reuse by functions that are for use directly by
 # experiments.
 
+
 def get_aliases(genesis_file):
     aliases = []
     # Open genesis_file and load all aliases into an array
     with open(os.path.expanduser(genesis_file), 'r') as genesisfile:
         for line in genesisfile:
-            aliases.append(json.loads(line)['txn']['data']['data']['alias'])
+            line_json = json.loads(line)
+            alias = line_json['txn']['data']['data']['alias']
+            aliases.append(alias)
     return aliases
 
 # End Helper Functions
