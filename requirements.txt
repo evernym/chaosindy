@@ -2,3 +2,6 @@ fabric
 chaostoolkit==0.14.0
 python3-indy==1.4.0
 logzero
+psutil
+pytest
+click

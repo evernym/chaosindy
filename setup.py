@@ -9,8 +9,7 @@ author = "Evernym"
 author_email = 'devin.fisher@evernym.com'
 
 packages = [
-    'chaosindy',
-    'psutil'
+    'chaosindy'
 ]
 
 test_require = []

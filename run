@@ -6,6 +6,8 @@ export CHAOS_GENESIS_FILE=/home/ubuntu/chaos-helpers/pool_transactions_genesis
 export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
 export CHAOS_WRITE_NYM_TIMEOUT=30
 #export CHAOS_CLEANUP=no
+export CHAOS_KILL_COUNT=4
+export CHAOS_UP_COUNT=10
 export CHAOS_CLEANUP=
 
 export PYTHONPATH=/home/ubuntu/chaos-helpers
