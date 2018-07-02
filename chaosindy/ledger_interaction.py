@@ -31,6 +31,13 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     if genesis_file is None:
         genesis_file = pool_genesis_txn_path
 
+    logger.debug('# 0. Set protocol version to 2')
+    try:
+        await pool.set_protocol_version(2)
+    except IndyError as e:
+        logger.info("Handled IndyError")
+        logger.exception(e)
+
     logger.debug('# 1. Create ledger config from genesis txn file')
     pool_config = json.dumps({"genesis_txn": str(genesis_file)})
     logger.debug("pool_name: %s", pool_name)

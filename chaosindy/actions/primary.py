@@ -1,7 +1,7 @@
 import json
 from chaosindy.execute.execute import FabricExecutor
 from chaosindy.probes.validator_info import get_chaos_temp_dir, get_validator_info, detect_primary
-from chaosindy.actions.node import stop_node_by_name, start_all_but_node_by_name
+from chaosindy.actions.node import stop_by_node_name, start_all_but_by_node_name
 
 def get_primary(genesis_file, ssh_config_file="~/.ssh/config", compile_stats=True):
     primary = None
@@ -19,13 +19,13 @@ def stop_primary(genesis_file, ssh_config_file="~/.ssh/config", compile_stats=Tr
     primary = get_primary(genesis_file, compile_stats=compile_stats,
                           ssh_config_file=ssh_config_file)
     if primary:
-        return stop_node_by_name(primary, ssh_config_file=ssh_config_file)
+        return stop_by_node_name(primary, ssh_config_file=ssh_config_file)
     return False
 
 def start_all_but_primary(genesis_file, ssh_config_file="~/.ssh/config", compile_stats=False):
     primary = get_primary(genesis_file, compile_stats=compile_stats,
                           ssh_config_file=ssh_config_file)
     if primary:
-        return start_all_but_node_by_name(primary, genesis_file=genesis_file, ssh_config_file=ssh_config_file)
+        return start_all_but_by_node_name(primary, genesis_file=genesis_file, ssh_config_file=ssh_config_file)
 
     return False

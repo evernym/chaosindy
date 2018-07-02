@@ -30,8 +30,10 @@ class FabricExecutor(RemoteExecutor):
         with Connection(host, config=config, user=user, connect_kwargs=connect_kwargs) as c:
             if as_sudo:
                 rtn = c.sudo(action, hide=True)
+                #rtn = c.sudo(action, hide=True, pty=True)
             else:
                 rtn = c.run(action, hide=True)
+                #rtn = c.run(action, hide=True, pty=True)
 
             q.put(Result(rtn.return_code, rtn.stdout, rtn.stderr))
 

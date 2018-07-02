@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# Pass parameters to experiment via the environment
+export CHAOS_SEED=000000000000000000000000Trustee1
+export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
+export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_WRITE_NYM_TIMEOUT=30
+# IMPORTANT! Must not induce catchup on more than f nodes. Doing so (i.e. 4 of
+#            10) causes the cluster to not reach consensus while running the load
+#            script.
+export CHAOS_CATCHUP_COUNT=3
+export CHAOS_LOAD_CLIENTS='["Client1", "Client2"]'
+#export CHAOS_LOAD_COMMAND='/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 2 -n 2 -k nym -g /home/ubuntu/pool_transactions_genesis'
+export CHAOS_LOAD_COMMAND='/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 20 -n 20 -k nym -g /home/ubuntu/pool_transactions_genesis >/dev/null 2>&1'
+export CHAOS_LOAD_COMMAND_TIMEOUT=120
+export CHAOS_CLEANUP=
+
+export PYTHONPATH=/home/ubuntu/chaosindy
+
+sudo rm -rf ~/.indy_client
+
+echo CHAOS_SEED=${CHAOS_SEED}
+echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
+echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
+echo CHAOS_CATCHUP_COUNT=${CHAOS_CATCHUP_COUNT}
+echo CHAOS_LOAD_CLIENTS=${CHAOS_LOAD_CLIENTS}
+echo CHAOS_LOAD_COMMAND=${CHAOS_LOAD_COMMAND}
+echo CHAOS_LOAD_COMMAND_TIMEOUT=${CHAOS_LOAD_COMMAND_TIMEOUT}
+echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
+echo PYTHONPATH=${PYTHONPATH}
+
+# Run the experiment
+chaos --verbose run ./experiments/force-catchup.json
