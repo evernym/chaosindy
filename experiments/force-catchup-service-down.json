@@ -47,6 +47,10 @@
         "load_command_timeout": {
             "type": "env",
             "key": "CHAOS_LOAD_COMMAND_TIMEOUT"
+        },
+        "pause_before_synced_check": {
+            "type": "env",
+            "key": "CHAOS_PAUSE_BEFORE_SYNCED_CHECK"
         }
     },
     "steady-state-hypothesis": {
@@ -122,22 +126,10 @@
                 "type": "python",
                 "module": "chaosindy.actions.node",
                 "func": "resurrect_random_nodes",
-                "arguments": {}
-            }, "pauses": {
-              "after": 300
-            }
-        },
-        {
-            "type": "probe",
-            "name": "killed-nodes-are-caught-up",
-            "tolerance": true,
-            "provider": {
-                "type": "python",
-                "module": "chaosindy.probes.validator_info",
-                "func": "resurrected_nodes_are_caught_up",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
-                    "transactions": "${load_transactions}"
+                    "transactions": "${load_transactions}",
+                    "pause_before_synced_check": "${pause_before_synced_check}"
                 }
             }
         }
@@ -150,7 +142,9 @@
                 "type": "python",
                 "module": "chaosindy.actions.node",
                 "func": "resurrect_random_nodes",
-                "arguments": {}
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
             }
         }
     ]

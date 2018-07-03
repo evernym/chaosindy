@@ -19,7 +19,8 @@ export CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=20
 # this many nyms to the ledger
 export CHAOS_LOAD_TRANSACTIONS=800
 export CHAOS_LOAD_COMMAND="/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c ${CHAOS_LOAD_CLIENT_COUNT} -n ${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT} -k nym -g /home/ubuntu/pool_transactions_genesis >/dev/null 2>&1"
-export CHAOS_LOAD_COMMAND_TIMEOUT=300
+export CHAOS_LOAD_COMMAND_TIMEOUT=120
+export CHAOS_PAUSE_BEFORE_SYNCED_CHECK=360
 export CHAOS_CLEANUP=
 
 export PYTHONPATH=/home/ubuntu/chaosindy
@@ -37,8 +38,9 @@ echo CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT}
 echo CHAOS_LOAD_TRANSACTIONS=${CHAOS_LOAD_TRANSACTIONS}
 echo CHAOS_LOAD_COMMAND=${CHAOS_LOAD_COMMAND}
 echo CHAOS_LOAD_COMMAND_TIMEOUT=${CHAOS_LOAD_COMMAND_TIMEOUT}
+echo CHAOS_PAUSE_BEFORE_SYNCED_CHECK=${CHAOS_PAUSE_BEFORE_SYNCED_CHECK}
 echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
 echo PYTHONPATH=${PYTHONPATH}
 
 # Run the experiment
-chaos --verbose run ./experiments/force-catchup.json
+chaos --verbose run ./experiments/force-catchup-service-down.json
