@@ -110,7 +110,6 @@ def unblock_port_by_node_name(node, port, ssh_config_file="~/.ssh/config"):
     return True
 
 
->>>>>>> Stashed changes
 def stop_by_node_name(node, ssh_config_file="~/.ssh/config"):
     logger.debug("stop node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
