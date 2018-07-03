@@ -300,3 +300,60 @@ def nodes_in_mode(genesis_file, mode, count, did="V4SGRU86Z58d6TV7PBUe6f",
         return True
     else:
         return False
+
+
+def resurrected_nodes_are_caught_up(genesis_file, transactions, 
+                                    did="V4SGRU86Z58d6TV7PBUe6f",
+                                    seed="000000000000000000000000Trustee1",
+                                    wallet_name="chaosindy",
+                                    wallet_key="chaosindy", pool="chaosindy",
+                                    ssh_config_file="~/.ssh/config"):
+    # TODO: add support for all ledgers, not just domain ledger.
+    #
+    # This function assumes that kill_random_nodes has been called and a
+    # "killed_nodes_random" file has been created in a temporary directory
+    # created using rules defined by get_chaos_temp_dir()
+    # 1. Get validator info from all nodes
+    get_validator_info(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file)
+    output_dir = get_chaos_temp_dir()
+    selected = []
+    try:
+        with open(join(output_dir, "killed_nodes_random"), "r") as f:
+            selected = json.load(f)
+    except Exception as e:
+        # Do not fail on exceptions like FileNotFoundError if best_effort is True
+        if best_effort:
+            return True
+        else:
+            raise e
+
+    matching = []
+    not_matching = {}
+    for alias in selected:
+        logger.debug("Checking if node %s has %s catchup transactions", alias, transactions)
+        validator_info = join(output_dir, "{}-validator-info".format(alias))
+        try:
+            with open(validator_info, 'r') as f:
+                node_info = json.load(f)
+
+            catchup_transactions = node_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
+            ledger_status = node_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1']
+            logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
+            logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
+
+            #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
+            if ledger_status == 'synced' and catchup_transactions == int(transactions):
+                matching.append(alias)
+            else:
+                not_matching[alias] = catchup_transactions
+        except Exception as e:
+            logger.error("Failed to load validator info for alias {}".format(alias))
+            logger.exception(e)
+            return False
+
+    if len(not_matching.keys()) != 0:
+        for node in not_matching.keys():
+            logger.debug("Node %s failed to catchup. Reported %s transactions. Should have been %s".format(node, str(catchup_transactions), transactions))
+        return False
+
+    return True

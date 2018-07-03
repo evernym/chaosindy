@@ -11,8 +11,15 @@ export CHAOS_WRITE_NYM_TIMEOUT=30
 export CHAOS_CATCHUP_COUNT=3
 export CHAOS_LOAD_CLIENTS='["Client1", "Client2"]'
 #export CHAOS_LOAD_COMMAND='/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 2 -n 2 -k nym -g /home/ubuntu/pool_transactions_genesis'
-export CHAOS_LOAD_COMMAND='/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 20 -n 20 -k nym -g /home/ubuntu/pool_transactions_genesis >/dev/null 2>&1'
-export CHAOS_LOAD_COMMAND_TIMEOUT=120
+export CHAOS_LOAD_CLIENT_COUNT=20
+export CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=20
+# This is the number of CHAOS_LOAD_CLIENTS (client nodes running the load script)
+# * CHAOS_LOAD_CLIENT_COUNT (processes or virtual clients spawned on each client
+# node) * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT (each process/virtual client writes
+# this many nyms to the ledger
+export CHAOS_LOAD_TRANSACTIONS=800
+export CHAOS_LOAD_COMMAND="/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c ${CHAOS_LOAD_CLIENT_COUNT} -n ${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT} -k nym -g /home/ubuntu/pool_transactions_genesis >/dev/null 2>&1"
+export CHAOS_LOAD_COMMAND_TIMEOUT=300
 export CHAOS_CLEANUP=
 
 export PYTHONPATH=/home/ubuntu/chaosindy
@@ -25,6 +32,9 @@ echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
 echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
 echo CHAOS_CATCHUP_COUNT=${CHAOS_CATCHUP_COUNT}
 echo CHAOS_LOAD_CLIENTS=${CHAOS_LOAD_CLIENTS}
+echo CHAOS_LOAD_CLIENT_COUNT=${CHAOS_LOAD_CLIENT_COUNT}
+echo CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT}
+echo CHAOS_LOAD_TRANSACTIONS=${CHAOS_LOAD_TRANSACTIONS}
 echo CHAOS_LOAD_COMMAND=${CHAOS_LOAD_COMMAND}
 echo CHAOS_LOAD_COMMAND_TIMEOUT=${CHAOS_LOAD_COMMAND_TIMEOUT}
 echo CHAOS_CLEANUP=${CHAOS_CLEANUP}

@@ -55,7 +55,6 @@ def generate_load(client, command=DEFAULT_LOAD_COMMAND,
         return False
     return True
 
-
 def generate_load_parallel(clients, command=DEFAULT_LOAD_COMMAND,
     timeout=DEFAULT_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
     #logger.debug("Generating load from client(s) %s in parallel", clients)
@@ -111,6 +110,7 @@ def unblock_port_by_node_name(node, port, ssh_config_file="~/.ssh/config"):
     return True
 
 
+>>>>>>> Stashed changes
 def stop_by_node_name(node, ssh_config_file="~/.ssh/config"):
     logger.debug("stop node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
@@ -239,6 +239,8 @@ def get_random_nodes(genesis_file, count):
 
 
 def block_node_port_random(genesis_file, count, ssh_config_file="~/.ssh/config"):
+    # TODO: Use the traffic shaper tool Kelly is using.
+    # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     selected = get_random_nodes(genesis_file, count)
     output_dir = get_chaos_temp_dir()
     blocked = 0
@@ -266,6 +268,9 @@ def block_node_port_random(genesis_file, count, ssh_config_file="~/.ssh/config")
 
 
 def unblock_node_port_random(best_effort=True, ssh_config_file="~/.ssh/config"):
+    # TODO: Use the traffic shaper tool Kelly is using.
+    # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
+    #
     # This function assumes that block_node_port_random has been called and a
     # "block_node_port_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
@@ -327,6 +332,58 @@ def kill_random_nodes(genesis_file, count, ssh_config_file="~/.ssh/config"):
     logger.debug("are_dead: %s -- count: %s -- tried_to_kill: %s -- len-aliases: %s", are_dead, count, tried_to_kill, number_of_aliases)
     if are_dead < int(count):
         return False
+
+    output_dir = get_chaos_temp_dir()
+    # Write out the killed nodes list to the temp output_dir created for this experiment
+    with open(join(output_dir, "killed_nodes_random"), "w") as f:
+        f.write(json.dumps(selected))
+
+    return True
+
+
+def resurrect_random_nodes(best_effort=True, ssh_config_file="~/.ssh/config"):
+    # This function assumes that kill_random_nodes has been called and a
+    # "killed_nodes_random" file has been created in a temporary directory
+    # created using rules defined by get_chaos_temp_dir()
+    output_dir = get_chaos_temp_dir()
+    selected = []
+    try:
+        with open(join(output_dir, "killed_nodes_random"), "r") as f:
+            selected = json.load(f)
+    except Exception as e:
+        # Do not fail on exceptions like FileNotFoundError if best_effort is True
+        if best_effort:
+            return True
+        else:
+            raise e
+
+    resurrected = 0
+    tried_to_resurrect = 0
+    # Keep track of nodes/ports that could not be resurrected either by the
+    # experiment's method or rollback segments and write it back to
+    # block_node_port_random in the experiement's temp directory
+    still_killed_nodes = []
+    for node in selected:
+        logger.debug("node alias to resurrect: %s", node)
+        try:
+            if start_by_node_name(node, ssh_config_file):
+                resurrected += 1
+            else:
+                still_killed_nodes.append(node)
+        except Exception as e:
+            if best_effort:
+                pass
+        tried_to_resurrect += 1
+
+    logger.debug("resurrected: %s -- tried_to_resurrect: %s -- len-aliases: %s", resurrected, tried_to_resurrect, len(selected))
+    if not best_effort and resurrected < len(selected):
+        return False
+
+    # Write out the killed nodes list file to the temp output_dir created
+    # for this experiment. Doing so allows resurrect_random_nodes to be called
+    # in the rollback segment of an experiment w/o causing problems
+    with open(join(output_dir, "killed_nodes_random"), "w") as f:
+        f.write(json.dumps(selected))
 
     return True
 

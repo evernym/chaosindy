@@ -28,6 +28,18 @@
             "type": "env",
             "key": "CHAOS_LOAD_CLIENTS"
         },
+        "load_client_count": {
+            "type": "env",
+            "key": "CHAOS_LOAD_CLIENT_COUNT"
+        },
+        "load_transactions_per_client": {
+            "type": "env",
+            "key": "CHAOS_LOAD_TRANSACTIONS_PER_CLIENT"
+        },
+        "load_transactions": {
+            "type": "env",
+            "key": "CHAOS_LOAD_TRANSACTIONS"
+        },
         "load_command": {
             "type": "env",
             "key": "CHAOS_LOAD_COMMAND"
@@ -78,11 +90,11 @@
     "method": [
         {
             "type": "action",
-            "name": "block-random-nodes",
+            "name": "kill-random-nodes",
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "block_node_port_random",
+                "func": "kill_random_nodes",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
                     "count": "${catchup_count}"
@@ -101,51 +113,31 @@
                     "command": "${load_command}",
                     "timeout": "${load_command_timeout}"
                 }
-            },
-            "pauses": {
-                "after": 120
             }
         },
         {
             "type": "action",
-            "name": "unblock-all-nodes",
+            "name": "resurrect-random-nodes",
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "unblock_node_port_random",
+                "func": "resurrect_random_nodes",
                 "arguments": {}
+            }, "pauses": {
+              "after": 300
             }
         },
         {
             "type": "probe",
-            "name": "nodes-in-catchup",
+            "name": "killed-nodes-are-caught-up",
             "tolerance": true,
             "provider": {
                 "type": "python",
                 "module": "chaosindy.probes.validator_info",
-                "func": "nodes_in_mode",
+                "func": "resurrected_nodes_are_caught_up",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
-                    "mode": "catchup",
-                    "count": "${catchup_count}"
-                }
-            },
-            "pauses": {
-                "after": 60
-            }
-        },
-        {
-            "type": "probe",
-            "name": "nodes-in-catchup-after-sync",
-            "tolerance": true,
-            "provider": {
-                "type": "python",
-                "module": "chaosindy.probes.validator_info",
-                "func": "nodes_in_mode",
-                "arguments": {
-                    "genesis_file": "${genesis_file}",
-                    "mode": "catchup",
-                    "count": "0"
+                    "transactions": "${load_transactions}"
                 }
             }
         }
@@ -153,11 +145,11 @@
     "rollbacks": [
         {
             "type": "action",
-            "name": "unblock-all-nodes",
+            "name": "resurrect-random-nodes",
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "unblock_node_port_random",
+                "func": "resurrect_random_nodes",
                 "arguments": {}
             }
         }
