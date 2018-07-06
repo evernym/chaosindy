@@ -1,0 +1,178 @@
+{
+    "version": "1.0.0",
+    "title": "Force Catchup",
+    "description": "Force f random nodes to perform a catchup by blocking the node port (inter-node communcation port), generate load, unblock the node port, and then test if each of the f blocked nodes completes a catchup. Expect the cluster to be in consensus and the catchup to complete w/o error. Note that CHAOS_VALIDATOR_NODES must be an environment variable containing a string that is a valid JSON list of node aliases as defined in CHAOS_GENESIS_FILE.",
+    "tags": [
+        "service",
+        "indy-node",
+        "concensus"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+        "catchup_count": {
+            "type": "env",
+            "key": "CHAOS_CATCHUP_COUNT"
+        },
+        "load_clients": {
+            "type": "env",
+            "key": "CHAOS_LOAD_CLIENTS"
+        },
+        "load_client_count": {
+            "type": "env",
+            "key": "CHAOS_LOAD_CLIENT_COUNT"
+        },
+        "load_transactions_per_client": {
+            "type": "env",
+            "key": "CHAOS_LOAD_TRANSACTIONS_PER_CLIENT"
+        },
+        "load_transactions": {
+            "type": "env",
+            "key": "CHAOS_LOAD_TRANSACTIONS"
+        },
+        "load_command": {
+            "type": "env",
+            "key": "CHAOS_LOAD_COMMAND"
+        },
+        "load_command_timeout": {
+            "type": "env",
+            "key": "CHAOS_LOAD_COMMAND_TIMEOUT"
+        },
+        "pause_before_synced_check": {
+            "type": "env",
+            "key": "CHAOS_PAUSE_BEFORE_SYNCED_CHECK"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "nodes-in-mode",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.validator_info",
+                    "func": "nodes_in_mode",
+                    "arguments": {
+                        "genesis_file": "${genesis_file}",
+                        "mode": "syncing",
+                        "count": "0"
+                    }
+                }
+            },
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "catchup_pool1",
+                        "my_wallet_name": "catchup_my_wallet1",
+                        "their_wallet_name": "catchup_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "block-random-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "block_node_port_random",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "count": "${catchup_count}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "generate-load",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "generate_load_parallel",
+                "arguments": {
+                    "clients": "${load_clients}",
+                    "command": "${load_command}",
+                    "timeout": "${load_command_timeout}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "unblock-random-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "unblock_node_port_random",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "generate-load-to-trigger-catchup",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "generate_load_parallel",
+                "arguments": {
+                    "clients": "${load_clients}",
+                    "command": "${load_command}",
+                    "timeout": "${load_command_timeout}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "check-if-unblocked-nodes-are-caught-up",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "unblocked_nodes_are_caught_up",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "transactions": "${load_transactions}",
+                    "pause_before_synced_check": "${pause_before_synced_check}"
+                }
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "unblock-random-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "unblock_node_port_random",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "best_effort": true
+                }
+            }
+        }
+    ]
+}

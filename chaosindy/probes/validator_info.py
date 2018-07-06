@@ -23,8 +23,9 @@ def get_chaos_temp_dir():
             myp = Process(myp.ppid())
             logger.debug("myp.name=%s", myp.name())
         except NoSuchProcess as e:
-            logger.info("Did not find chaos pid before traversing all the way to the top of the process tree!")
+            logger.info("Did not find chaos pid before traversing all the way to the top of the process tree! Defaulting to %s", subprocess_pid)
             logger.exception(e)
+            chaos_pid = subprocess_pid
             break
 
     logger.debug("subprocess pid: %s chaos pid: %s", subprocess_pid, chaos_pid)

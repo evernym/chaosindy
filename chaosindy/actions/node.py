@@ -10,8 +10,13 @@ from os.path import expanduser, join
 
 # Begin Constants
 
-DEFAULT_LOAD_COMMAND="python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 20 -n 10 -k nym -g /home/ubuntu/pool_transactions_genesis"
-DEFAULT_LOAD_TIMEOUT=60
+DEFAULT_CHAOS_LOAD_COMMAND="python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 20 -n 10 -k nym -g /home/ubuntu/pool_transactions_genesis"
+DEFAULT_CHAOS_LOAD_TIMEOUT=60
+DEFAULT_CHAOS_DID="V4SGRU86Z58d6TV7PBUe6f"
+DEFAULT_CHAOS_SEED="000000000000000000000000Trustee1"
+DEFAULT_CHAOS_WALLET_NAME="chaosindy"
+DEFAULT_CHAOS_WALLET_KEY="chaosindy"
+DEFAULT_CHAOS_POOL="chaosindy"
 
 # End Constants
 
@@ -46,9 +51,9 @@ def get_aliases(genesis_file):
 
 # End Helper Functions
 
-def generate_load(client, command=DEFAULT_LOAD_COMMAND,
-    timeout=DEFAULT_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
-    logger.debug("Generating load from client %s using command >%s< and timeout >%s seconds<", client, command, timeout)
+def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
+    timeout=DEFAULT_CHAOS_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
+    logger.info("Generating load from client %s using command >%s< and timeout >%s seconds<", client, command, timeout)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
     result = executor.execute(client, command, as_sudo=True, timeout=int(timeout))
     if result.return_code != 0:
@@ -56,10 +61,10 @@ def generate_load(client, command=DEFAULT_LOAD_COMMAND,
         return False
     return True
 
-def generate_load_parallel(clients, command=DEFAULT_LOAD_COMMAND,
-    timeout=DEFAULT_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
+def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
+    timeout=DEFAULT_CHAOS_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
     #logger.debug("Generating load from client(s) %s in parallel", clients)
-    logger.debug("Generating load from client(s) %s in sequence. TODO: do this in parallel.", clients)
+    logger.info("Generating load from client(s) %s in sequence. TODO: do this in parallel.", clients)
     nodes = map(lambda x: (x, command, timeout), json.loads(clients))
     for node in nodes:
         generate_load(node[0], command=node[1], timeout=node[2],
@@ -95,12 +100,16 @@ def block_port_by_node_name(node, port, ssh_config_file="~/.ssh/config"):
     return apply_iptables_rule_by_node_name(node, rule, ssh_config_file)
 
 
-def unblock_port_by_node_name(node, port, ssh_config_file="~/.ssh/config"):
+def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file="~/.ssh/config"):
+    do_not_fail = None
+    if best_effort:
+       do_not_fail = " || true"
+
     ## 1. Unblock a port or port range using a firewall
     if ":" in port:
-        rule = "-D INPUT -p tcp --match multiport --dports {} -j DROP".format(port)
+        rule = "-D INPUT -p tcp --match multiport --dports {} -j DROP{}".format(port, do_not_fail)
     else:
-        rule = "-D INPUT -p tcp --destination-port {} -j DROP".format(port)
+        rule = "-D INPUT -p tcp --destination-port {} -j DROP{}".format(port, do_not_fail)
 
     try:
         return apply_iptables_rule_by_node_name(node, rule, ssh_config_file)
@@ -267,7 +276,57 @@ def block_node_port_random(genesis_file, count, ssh_config_file="~/.ssh/config")
     return True
 
 
-def unblock_node_port_random(best_effort=True, ssh_config_file="~/.ssh/config"):
+def unblocked_nodes_are_caught_up(genesis_file, transactions=None,
+                                  pause_before_synced_check=None,
+                                  best_effort=True,
+                                  did=DEFAULT_CHAOS_DID,
+                                  seed=DEFAULT_CHAOS_SEED,
+                                  wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                                  wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                                  pool=DEFAULT_CHAOS_POOL,
+                                  ssh_config_file="~/.ssh/config"):
+    # TODO: Use the traffic shaper tool Kelly is using.
+    # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
+    #
+    # This function assumes that block_node_port_random has been called and a
+    # "block_node_port_random" file has been created in a temporary directory
+    # created using rules defined by get_chaos_temp_dir()
+    output_dir = get_chaos_temp_dir()
+    blocked_ports = {}
+    try:
+        with open(join(output_dir, "block_node_port_random"), "r") as f:
+            blocked_ports = json.load(f)
+    except Exception as e:
+        # Do not fail on exceptions like FileNotFoundError if best_effort is True
+        if best_effort:
+            return True
+        else:
+            raise e
+
+    selected = blocked_ports.keys()
+
+    # Only check if resurrected nodes are caught up if both a pause and number of
+    # transactions are given.
+    if pause_before_synced_check and transactions:
+        logger.debug("Pausing %s seconds before checking if unblocked nodes are synced...", pause_before_synced_check)
+        # TODO: Use a count down timer? May be nice for those who are running
+        #       experiments manually.
+        time.sleep(int(pause_before_synced_check))
+        logger.debug("Checking if unblocked nodes are synced and report %s transactions...", transactions)
+        return nodes_are_caught_up(selected, genesis_file, transactions, did,
+                                   seed, wallet_name, wallet_key, pool,
+                                   ssh_config_file)
+    return True
+
+
+def unblock_node_port_random(genesis_file, transactions=None,
+                             pause_before_synced_check=None, best_effort=True,
+                             did=DEFAULT_CHAOS_DID,
+                             seed=DEFAULT_CHAOS_SEED,
+                             wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                             wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                             pool=DEFAULT_CHAOS_POOL,
+                             ssh_config_file="~/.ssh/config"):
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     #
@@ -309,12 +368,17 @@ def unblock_node_port_random(best_effort=True, ssh_config_file="~/.ssh/config"):
     if not best_effort and unblocked < len(selected):
         return False
 
-    # Write out the block_node_port_random file to the temp output_dir created
-    # for this experiment. Doing so allows unblock_node_port_random to be called
-    # in the rollback segment of an experiment w/o causing problems
-    with open(join(output_dir, "block_node_port_random"), "w") as f:
-        f.write(json.dumps(still_blocked_ports))
-
+    # Only check if resurrected nodes are caught up if both a pause and number of
+    # transactions are given.
+    if pause_before_synced_check and transactions:
+        logger.debug("Pausing %s seconds before checking if unblocked nodes are synced...", pause_before_synced_check)
+        # TODO: Use a count down timer? May be nice for those who are running
+        #       experiments manually.
+        time.sleep(int(pause_before_synced_check))
+        logger.debug("Checking if unblocked nodes are synced and report %s transactions...", transactions)
+        return unblocked_nodes_are_caught_up(genesis_file, transactions, did,
+                                             seed, wallet_name, wallet_key, pool,
+                                             ssh_config_file)
     return True
 
 
@@ -335,7 +399,7 @@ def kill_random_nodes(genesis_file, count, ssh_config_file="~/.ssh/config"):
 
     output_dir = get_chaos_temp_dir()
     # Write out the killed nodes list to the temp output_dir created for this experiment
-    with open(join(output_dir, "killed_nodes_random"), "w") as f:
+    with open(join(output_dir, "nodes_random"), "w") as f:
         f.write(json.dumps(selected))
 
     return True
@@ -343,18 +407,19 @@ def kill_random_nodes(genesis_file, count, ssh_config_file="~/.ssh/config"):
 
 def resurrect_random_nodes(genesis_file, transactions=None,
                            pause_before_synced_check=None, best_effort=True,
-                           did="V4SGRU86Z58d6TV7PBUe6f",
-                           seed="000000000000000000000000Trustee1",
-                           wallet_name="chaosindy", wallet_key="chaosindy",
-                           pool="chaosindy",
+                           did=DEFAULT_CHAOS_DID,
+                           seed=DEFAULT_CHAOS_SEED,
+                           wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                           wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                           pool=DEFAULT_CHAOS_POOL,
                            ssh_config_file="~/.ssh/config"):
     # This function assumes that kill_random_nodes has been called and a
-    # "killed_nodes_random" file has been created in a temporary directory
+    # "nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
     output_dir = get_chaos_temp_dir()
     selected = []
     try:
-        with open(join(output_dir, "killed_nodes_random"), "r") as f:
+        with open(join(output_dir, "nodes_random"), "r") as f:
             selected = json.load(f)
     except Exception as e:
         # Do not fail on exceptions like FileNotFoundError if best_effort is True
@@ -388,49 +453,42 @@ def resurrect_random_nodes(genesis_file, transactions=None,
     # Write out the killed nodes list file to the temp output_dir created
     # for this experiment. Doing so allows resurrect_random_nodes to be called
     # in the rollback segment of an experiment w/o causing problems
-    with open(join(output_dir, "killed_nodes_random"), "w") as f:
+    with open(join(output_dir, "nodes_random"), "w") as f:
         f.write(json.dumps(still_killed_nodes))
 
     # Only check if resurrected nodes are caught up if both a pause and number of
     # transactions are given.
     if pause_before_synced_check and transactions:
         logger.debug("Pausing %s seconds before checking if resurrected nodes are synced...", pause_before_synced_check)
+        # TODO: Use a count down timer? May be nice for those who are running
+        #       experiments manually.
         time.sleep(int(pause_before_synced_check))
         logger.debug("Checking if resurrected nodes are synced and report %s transactions...", transactions)
-        return resurrected_nodes_are_caught_up(genesis_file, transactions, did,
-                                               seed, wallet_name, wallet_key,
-                                               pool, ssh_config_file)
+        return nodes_are_caught_up(selected, genesis_file, transactions, did,
+                                   seed, wallet_name, wallet_key,
+                                   pool, ssh_config_file)
     return True
 
 
-def resurrected_nodes_are_caught_up(genesis_file, transactions, 
-                                    did="V4SGRU86Z58d6TV7PBUe6f",
-                                    seed="000000000000000000000000Trustee1",
-                                    wallet_name="chaosindy",
-                                    wallet_key="chaosindy", pool="chaosindy",
-                                    ssh_config_file="~/.ssh/config"):
+def nodes_are_caught_up(nodes, genesis_file, transactions, 
+                        did=DEFAULT_CHAOS_DID,
+                        seed=DEFAULT_CHAOS_SEED,
+                        wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                        wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                        pool=DEFAULT_CHAOS_POOL,
+                        ssh_config_file="~/.ssh/config"):
     # TODO: add support for all ledgers, not just domain ledger.
     #
     # This function assumes that kill_random_nodes has been called and a
-    # "killed_nodes_random" file has been created in a temporary directory
+    # "nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
     # 1. Get validator info from all nodes
     get_validator_info(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file)
     output_dir = get_chaos_temp_dir()
-    selected = []
-    try:
-        with open(join(output_dir, "killed_nodes_random"), "r") as f:
-            selected = json.load(f)
-    except Exception as e:
-        # Do not fail on exceptions like FileNotFoundError if best_effort is True
-        if best_effort:
-            return True
-        else:
-            raise e
 
     matching = []
     not_matching = {}
-    for alias in selected:
+    for alias in nodes:
         logger.debug("Checking if node %s has %s catchup transactions", alias, transactions)
         validator_info = join(output_dir, "{}-validator-info".format(alias))
         try:
@@ -443,18 +501,24 @@ def resurrected_nodes_are_caught_up(genesis_file, transactions,
             logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
 
             #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
-            if ledger_status == 'synced' and catchup_transactions == int(transactions):
+
+            transaction_counts = transactions.split(" to ")
+            transaction_counts_len = len(transaction_counts)
+            if (ledger_status == 'synced' and
+                   catchup_transactions >= int(transaction_counts[0]) and
+                   catchup_transactions <= int(transaction_counts[-1])):
                 matching.append(alias)
             else:
                 not_matching[alias] = catchup_transactions
         except Exception as e:
-            logger.error("Failed to load validator info for alias {}".format(alias))
+            logger.error("Failed to load validator info for alias %s", alias)
             logger.exception(e)
             return False
 
     if len(not_matching.keys()) != 0:
         for node in not_matching.keys():
-            logger.debug("Node %s failed to catchup. Reported %s transactions. Should have been %s".format(node, str(catchup_transactions), transactions))
+            logger.error("Node %s failed to catchup. Reported %s transactions. Should have been %s", node, str(catchup_transactions), transactions)
+            logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
         return False
 
     return True

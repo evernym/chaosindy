@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do 
+  TARGET="$(readlink "$SOURCE")"
+  if [[ $SOURCE == /* ]]; then
+    SOURCE="$TARGET"
+  else
+    DIR="$( dirname "$SOURCE" )"
+    SOURCE="$DIR/$TARGET"
+  fi
+done
+RDIR="$( dirname "$SOURCE" )"
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
 # Pass parameters to experiment via the environment
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
@@ -26,4 +39,4 @@ echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
 echo PYTHONPATH=${PYTHONPATH}
 
 # Run the experiment
-chaos --verbose run ./experiments/consensus-recovery.json
+chaos --verbose run ${DIR}/../experiments/consensus-recovery.json
