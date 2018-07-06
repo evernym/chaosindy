@@ -1,19 +1,30 @@
 import json
 from chaosindy.probes.validator_info import get_validator_info, get_chaos_temp_dir
+from os.path import expanduser
+from os import getenv
 
+# TODO: use argparse to get user input
+genesis_file = getenv("CHAOS_GENESIS_FILE") or '/home/ubuntu/chaosindy/pool_transactions_genesis'
 
 # Generate a temp dir containing JSON for each validator node
-get_validator_info('/home/ubuntu/chaosindy/pool_transactions_genesis')
+get_validator_info(genesis_file)
 temp_dir = get_chaos_temp_dir()
+
+aliases = []
+with open(expanduser(genesis_file), 'r') as genesisfile:
+    for line in genesisfile:
+        aliases.append(json.loads(line)['txn']['data']['data']['alias'])
 
 # Extract Catchup_status for the domain ledger for each validator_node
 print('Node\tStatus\tCatchup txns')
 print('')
-for x in range(1,11):
-    #import pdb; pdb.set_trace()
-    filename = '{}/Node{}-validator-info'.format(temp_dir, x)
-    with open(filename, 'r') as f:
-        validator_info = json.load(f)
-        print('Node{}\t{}\t{}'.format( x,   
+for node in sorted(aliases):
+    filename = '{}/{}-validator-info'.format(temp_dir, node)
+    try:
+        with open(filename, 'r') as f:
+            validator_info = json.load(f)
+        print('{}\t{}\t{}'.format( node,
             validator_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1'],
             validator_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']))
+    except:
+        print('{}\t{}\t{}'.format( node, 'Unknown', 'Unknown' ))

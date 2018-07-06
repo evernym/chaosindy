@@ -38,7 +38,8 @@ def get_chaos_temp_dir():
 def get_validator_info(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
                        seed="000000000000000000000000Trustee1",
                        wallet_name="chaosindy", wallet_key="chaosindy",
-                       pool="chaosindy", ssh_config_file="~/.ssh/config"):
+                       pool="chaosindy", timeout=120,
+                       ssh_config_file="~/.ssh/config"):
     '''
      The following steps are required to configure the client node where
      indy-cli will be used to retrieve validator-info:
@@ -124,7 +125,7 @@ def get_validator_info(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
         f.write("pool connect {}\n".format(pool))
         f.write("ledger get-validator-info\n")
         f.write("exit")
-    all_validator_info = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+    all_validator_info = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, timeout=timeout, shell=False)
     lines = all_validator_info.splitlines()
     # ledger get-validator-info returns a JSON string for each node to STDOUT
     # Each JSON string is preceeded by "Get validator info response for node..."
@@ -152,9 +153,12 @@ def get_validator_info(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
 def detect_primary(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
                    seed="000000000000000000000000Trustee1",
                    wallet_name="chaosindy", wallet_key="chaosindy",
-                   pool="chaosindy", ssh_config_file="~/.ssh/config"):
+                   pool="chaosindy", timeout=120,
+                   ssh_config_file="~/.ssh/config"):
     # 1. Get validator info from all nodes
-    get_validator_info(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file)
+    get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
+                       wallet_key=wallet_key, pool=pool,
+                       timeout=timeout, ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
 
     logger.debug("genesis_file: %s ssh_config_file: %s", genesis_file, ssh_config_file)
@@ -178,25 +182,32 @@ def detect_primary(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
         try:
             with open(validator_info, 'r') as f:
                 node_info = json.load(f)
+            primary = node_info['data']['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary'].split(":", 1)[0]
+            mode = node_info['data']['Node_info']['Mode']
+        except FileNotFoundError:
+            logger.info("Failed to load validator info for alias {}".format(alias))
+            logger.info("Setting primary to Unknown for alias {}".format(alias))
+            primary = "Unknown"
+            logger.info("Setting mode to Unknown for alias {}".format(alias))
+            mode = "Unknown"
         except Exception as e:
             logger.error("Failed to load validator info for alias {}".format(alias))
             logger.exception(e)
             return False
 
-        primary = node_info['data']['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary'].split(":", 1)[0]
         # Set the alias' primary
         alias_map = primary_map.get(alias, {})
         alias_map["primary"] = primary
         primary_map[alias] = alias_map
-        # Put the alias in the primary's is_primary_to list
-        primary_alias_map = primary_map.get(primary, {})
-        is_primary_to_list = primary_alias_map.get("is_primary_to", [])
-        if alias not in is_primary_to_list:
-            is_primary_to_list.append(alias)
-        primary_alias_map['is_primary_to'] = is_primary_to_list
-        primary_map[primary] = primary_alias_map
+        if primary != 'Unknown':
+            # Put the alias in the primary's is_primary_to list
+            primary_alias_map = primary_map.get(primary, {})
+            is_primary_to_list = primary_alias_map.get("is_primary_to", [])
+            if alias not in is_primary_to_list:
+                is_primary_to_list.append(alias)
+            primary_alias_map['is_primary_to'] = is_primary_to_list
+            primary_map[primary] = primary_alias_map
 
-        mode = node_info['data']['Node_info']['Mode']
         logger.info("%s's primary is %s - mode: %s", alias, primary, mode)
         tried_to_query += 1
 
@@ -231,7 +242,9 @@ def detect_mode(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
                 wallet_name="chaosindy", wallet_key="chaosindy",
                 pool="chaosindy", ssh_config_file="~/.ssh/config"):
     # 1. Get validator info from all nodes
-    get_validator_info(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file)
+    get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
+                       wallet_key=wallet_key, pool=pool,
+                       timeout=timeout, ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
 
     logger.debug("genesis_file: %s ssh_config_file: %s", genesis_file, ssh_config_file)
@@ -255,12 +268,16 @@ def detect_mode(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
         try:
             with open(validator_info, 'r') as f:
                 node_info = json.load(f)
+            mode = node_info['data']['Node_info']['Mode']
+        except FileNotFoundError:
+            logger.info("Failed to load validator info for alias {}".format(alias))
+            logger.info("Setting mode to Unknown for alias {}".format(alias))
+            mode = "Unknown"
         except Exception as e:
             logger.error("Failed to load validator info for alias {}".format(alias))
             logger.exception(e)
             return False
 
-        mode = node_info['data']['Node_info']['Mode']
         logger.info("%s's mode is %s", alias, mode)
         # Set the alias' mode
         alias_map = mode_map.get(alias, {})
@@ -315,7 +332,9 @@ def resurrected_nodes_are_caught_up(genesis_file, transactions,
     # "killed_nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
     # 1. Get validator info from all nodes
-    get_validator_info(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file)
+    get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
+                       wallet_key=wallet_key, pool=pool,
+                       timeout=timeout, ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
     selected = []
     try:
@@ -339,18 +358,25 @@ def resurrected_nodes_are_caught_up(genesis_file, transactions,
 
             catchup_transactions = node_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
             ledger_status = node_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1']
-            logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
-            logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
-
-            #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
-            if ledger_status == 'synced' and catchup_transactions == int(transactions):
-                matching.append(alias)
-            else:
-                not_matching[alias] = catchup_transactions
+        except FileNotFoundError:
+            logger.info("Failed to load validator info for alias {}".format(alias))
+            logger.info("Setting number of catchup transactions to None for alias {}".format(alias))
+            catchup_transactions = None
+            logger.info("Setting ledger status to Unknown for alias {}".format(alias))
+            ledger_status = "Unknown"
         except Exception as e:
             logger.error("Failed to load validator info for alias {}".format(alias))
             logger.exception(e)
             return False
+
+        logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
+        logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
+
+        #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
+        if ledger_status == 'synced' and catchup_transactions == int(transactions):
+            matching.append(alias)
+        else:
+            not_matching[alias] = catchup_transactions
 
     if len(not_matching.keys()) != 0:
         for node in not_matching.keys():

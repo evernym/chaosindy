@@ -1,6 +1,6 @@
 import json
 from chaosindy.execute.execute import FabricExecutor
-from chaosindy.probes.validator_info import get_chaos_temp_dir, get_validator_info, detect_primary
+from chaosindy.probes.validator_info import get_chaos_temp_dir, detect_primary
 from chaosindy.actions.node import stop_by_node_name, start_all_but_by_node_name
 
 def get_primary(genesis_file, ssh_config_file="~/.ssh/config", compile_stats=True):

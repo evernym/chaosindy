@@ -497,23 +497,29 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
 
             catchup_transactions = node_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
             ledger_status = node_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1']
-            logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
-            logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
-
-            #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
-
-            transaction_counts = transactions.split(" to ")
-            transaction_counts_len = len(transaction_counts)
-            if (ledger_status == 'synced' and
-                   catchup_transactions >= int(transaction_counts[0]) and
-                   catchup_transactions <= int(transaction_counts[-1])):
-                matching.append(alias)
-            else:
-                not_matching[alias] = catchup_transactions
+        except FileNotFoundError:
+            logger.info("Setting number of catchup transactions to Unknown for alias {}".format(alias))
+            catchup_transactions = "Unknown"
+            logger.info("Setting ledger status to Unknown for alias {}".format(alias))
+            ledger_status = "Unknown"
         except Exception as e:
             logger.error("Failed to load validator info for alias %s", alias)
             logger.exception(e)
             return False
+
+        logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
+        logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
+
+        #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
+
+        transaction_counts = transactions.split(" to ")
+        transaction_counts_len = len(transaction_counts)
+        if (ledger_status == 'synced' and
+               catchup_transactions >= int(transaction_counts[0]) and
+               catchup_transactions <= int(transaction_counts[-1])):
+            matching.append(alias)
+        else:
+            not_matching[alias] = catchup_transactions
 
     if len(not_matching.keys()) != 0:
         for node in not_matching.keys():
