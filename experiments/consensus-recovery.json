@@ -59,7 +59,7 @@
                         "pool_name": "consensus_recovery_pool1",
                         "my_wallet_name": "consensus_recovery_my_wallet1",
                         "their_wallet_name": "consensus_recovery_their_wallet1",
-                        "timeout": "10"
+                        "timeout": "${write_nym_timeout}"
                     }
                 }
             }

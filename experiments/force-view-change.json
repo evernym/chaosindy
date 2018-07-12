@@ -63,18 +63,31 @@
         },
         {
             "type": "action",
-            "name": "start-all-but-primary",
+            "name": " start-stopped-primary-after-view-change",
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.primary",
-                "func": "start_all_but_primary",
+                "func": "start_stopped_primary_after_view_change",
                 "arguments": {
                     "genesis_file": "${genesis_file}"
                 }
             }
         }
+
     ],
     "rollbacks": [
+        {
+            "type": "action",
+            "name": "start-stopped-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
         {
             "type": "action",
             "name": "cleanup-validator-info",

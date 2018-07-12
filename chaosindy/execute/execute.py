@@ -160,10 +160,10 @@ class ParallelFabricExecutor(FabricExecutor):
         for process in self._processes:
             # Gracefully send SIGTERM to each process
             process.terminate()
-        if self.f:
+        #if self.f:
             #self.print("Closing file handle...")
             #self.close_print()
-            self.f = None
+            #self.f = None
 
     def _parallel_execute_on_host(self, results, host, action, config, user=None,
                                   as_sudo=False, **kwargs):
