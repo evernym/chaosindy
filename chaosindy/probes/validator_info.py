@@ -1,11 +1,14 @@
 import json
 import subprocess
 import tempfile
-from chaosindy.execute.execute import FabricExecutor
+from chaosindy.common import *
+from chaosindy.execute.execute import FabricExecutor, ParallelFabricExecutor
 from os.path import expanduser, join
 from os import makedirs
 from psutil import Process, NoSuchProcess
 from logzero import logger
+from multiprocessing import Pool
+
 
 def get_chaos_temp_dir():
     # Get current process info
@@ -35,11 +38,90 @@ def get_chaos_temp_dir():
     return tempdir_path
 
 
-def get_validator_info(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
-                       seed="000000000000000000000000Trustee1",
-                       wallet_name="chaosindy", wallet_key="chaosindy",
-                       pool="chaosindy", timeout=120,
-                       ssh_config_file="~/.ssh/config"):
+def get_validator_info_from_node_serial(genesis_file, 
+                                        timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                                        ssh_config_file="~/.ssh/config"):
+    output_dir = get_chaos_temp_dir()
+    logger.debug("genesis_file: %s ssh_config_file: %s", genesis_file, ssh_config_file)
+    # 1. Open genesis_file and load all aliases into an array
+    aliases = []
+    with open(expanduser(genesis_file), 'r') as genesisfile:
+        for line in genesisfile:
+            aliases.append(json.loads(line)['txn']['data']['data']['alias'])
+    logger.debug(str(aliases))
+
+    executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
+
+    # Get get validator info from each alias
+    count = len(aliases)
+    logger.debug("Getting validator data from all %i nodes...", count)
+    tried_to_query= 0
+    are_queried = 0
+    for alias in aliases:
+        logger.debug("alias to query validator info from: %s", alias)
+        result = executor.execute(alias, "validator-info -v --json",
+                                  timeout=int(timeout), as_sudo=True)
+        if result.return_code == 0:
+            are_queried += 1
+            # Write JSON output to temp directory output_dir, creating a unique
+            # file name using the alias
+            with open(join(output_dir, "{}-validator-info".format(alias)), "w") as f:
+                f.write(result.stdout)
+        tried_to_query += 1
+
+    logger.debug("are_queried: %s count: %i tried_to_query: %i len-aliases: %i", are_queried, count, tried_to_query, len(aliases))
+    if are_queried < int(count):
+        return False
+
+    return True
+
+
+def get_validator_info_from_node_parallel(genesis_file, 
+                                          timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                                          ssh_config_file="~/.ssh/config"):
+    output_dir = get_chaos_temp_dir()
+    logger.debug("genesis_file: %s ssh_config_file: %s", genesis_file, ssh_config_file)
+    # 1. Open genesis_file and load all aliases into an array
+    aliases = []
+    with open(expanduser(genesis_file), 'r') as genesisfile:
+        for line in genesisfile:
+            aliases.append(json.loads(line)['txn']['data']['data']['alias'])
+    logger.debug(str(aliases))
+
+    executor = ParallelFabricExecutor(ssh_config_file=expanduser(ssh_config_file))
+
+    # Get get validator info from each alias
+    count = len(aliases)
+    logger.debug("Getting validator data from all %i nodes...", count)
+    tried_to_query = 0
+    are_queried = 0
+    logger.debug("alias to query validator info from: %s", str(aliases))
+    result = executor.execute(aliases, "validator-info -v --json",
+                              connect_timeout=int(timeout), as_sudo=True)
+
+    for alias in aliases:
+        if result[alias]['return_code'] == 0:
+            are_queried += 1
+            # Write JSON output to temp directory output_dir, creating a unique
+            # file name using the alias
+            with open(join(output_dir, "{}-validator-info".format(alias)), "w") as f:
+                f.write(result[alias]['stdout'])
+        tried_to_query += 1
+
+    logger.debug("are_queried: %s count: %i tried_to_query: %i len-aliases: %i", are_queried, count, tried_to_query, len(aliases))
+    if are_queried < int(count):
+        return False
+
+    return True
+
+
+def get_validator_info_from_cli(genesis_file, did=DEFAULT_CHAOS_DID,
+                                seed=DEFAULT_CHAOS_SEED,
+                                wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                                wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                                pool=DEFAULT_CHAOS_POOL,
+                                timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                                ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     '''
      The following steps are required to configure the client node where
      indy-cli will be used to retrieve validator-info:
@@ -125,7 +207,7 @@ def get_validator_info(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
         f.write("pool connect {}\n".format(pool))
         f.write("ledger get-validator-info\n")
         f.write("exit")
-    all_validator_info = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, timeout=timeout, shell=False)
+    all_validator_info = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, timeout=int(timeout), shell=False)
     lines = all_validator_info.splitlines()
     # ledger get-validator-info returns a JSON string for each node to STDOUT
     # Each JSON string is preceeded by "Get validator info response for node..."
@@ -150,11 +232,61 @@ def get_validator_info(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
     return True
 
 
-def detect_primary(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
-                   seed="000000000000000000000000Trustee1",
-                   wallet_name="chaosindy", wallet_key="chaosindy",
-                   pool="chaosindy", timeout=120,
-                   ssh_config_file="~/.ssh/config"):
+def get_validator_info_from_node(genesis_file,
+                                 timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE,
+                                 parallel=True):
+    if parallel:
+        return get_validator_info_from_node_parallel(genesis_file, timeout=timeout,
+                                                     ssh_config_file=ssh_config_file)
+    else:
+        return get_validator_info_from_node_serial(genesis_file, timeout=timeout,
+                                                   ssh_config_file=ssh_config_file)
+
+
+def get_validator_info(genesis_file, did=DEFAULT_CHAOS_DID,
+                       seed=DEFAULT_CHAOS_SEED,
+                       wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                       wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                       pool=DEFAULT_CHAOS_POOL,
+                       timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                       ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE,
+                       source=DEFAULT_VALIDATOR_INFO_SOURCE):
+    '''
+    Validator info can be retrieved from any of the following:
+      - A client that has indy-cli installed using `ledger get-validator-info`.
+        This option provides more up-to-date information, but may take a long
+        time to return results (100 sec default timeout when at least one node
+        is down/unreachable). See ValidatorInfoSource.CLI in chaosindy/common.
+      - A validator node using `validator-info -v --json`
+        This option provides quicker results, but the data may be up to 60
+        seconds stale/out-of-date.  See ValidatorInfoSource.NODE in
+        chaosindy/common.
+
+    The DEFAULT_VALIDATOR_INFO_SOURCE dictates where chaos experiments will get
+    validator information by default. 
+    '''
+    if source == ValidatorInfoSource.NODE:
+        return get_validator_info_from_node(genesis_file, timeout=timeout,
+                                            ssh_config_file=ssh_config_file)
+    elif source == ValidatorInfoSource.CLI:
+        return get_validator_info_from_cli(genesis_file, did=did, seed=seed,
+                                           wallet_name=wallet_name,
+                                           wallet_key=wallet_key, pool=pool,
+                                           timeout=timeout,
+                                           ssh_config_file=ssh_config_file)
+    else:
+        logger.error("Unsupported validator info source: %s", source)
+        return False
+
+
+def detect_primary(genesis_file, did=DEFAULT_CHAOS_DID,
+                   seed=DEFAULT_CHAOS_SEED,
+                   wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                   wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                   pool=DEFAULT_CHAOS_POOL,
+                   timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                   ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # 1. Get validator info from all nodes
     get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
                        wallet_key=wallet_key, pool=pool,
@@ -182,8 +314,18 @@ def detect_primary(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
         try:
             with open(validator_info, 'r') as f:
                 node_info = json.load(f)
-            primary = node_info['data']['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary'].split(":", 1)[0]
-            mode = node_info['data']['Node_info']['Mode']
+
+            # For each node, Indy CLI returns json in a 'data' element
+            try:
+                primary = node_info['data']['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary']
+                primary = primary.split(":", 1)[0] if primary else None
+                mode = node_info['data']['Node_info']['Mode']
+            except KeyError as e:
+                # For each node, validator-info script does NOT return json in a 'data' element
+                primary = node_info['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary']
+                primary = primary.split(":", 1)[0] if primary else None
+                mode = node_info['Node_info']['Mode']
+
         except FileNotFoundError:
             logger.info("Failed to load validator info for alias {}".format(alias))
             logger.info("Setting primary to Unknown for alias {}".format(alias))
@@ -237,10 +379,13 @@ def detect_primary(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
     return True
 
 
-def detect_mode(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
-                seed="000000000000000000000000Trustee1",
-                wallet_name="chaosindy", wallet_key="chaosindy",
-                pool="chaosindy", ssh_config_file="~/.ssh/config"):
+def detect_mode(genesis_file, did=DEFAULT_CHAOS_DID,
+                seed=DEFAULT_CHAOS_SEED,
+                wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                pool=DEFAULT_CHAOS_POOL,
+                timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # 1. Get validator info from all nodes
     get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
                        wallet_key=wallet_key, pool=pool,
@@ -295,12 +440,17 @@ def detect_mode(genesis_file, did="V4SGRU86Z58d6TV7PBUe6f",
     return True
 
 
-def nodes_in_mode(genesis_file, mode, count, did="V4SGRU86Z58d6TV7PBUe6f",
-                  seed="000000000000000000000000Trustee1",
-                  wallet_name="chaosindy", wallet_key="chaosindy",
-                  pool="chaosindy", ssh_config_file="~/.ssh/config"):
+def nodes_in_mode(genesis_file, mode, count, did=DEFAULT_CHAOS_DID,
+                  seed=DEFAULT_CHAOS_SEED,
+                  wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                  wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                  pool=DEFAULT_CHAOS_POOL,
+                  timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # Must first get mode of each node using validator info.
-    if not detect_mode(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file):
+    if not detect_mode(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
+                       wallet_key=wallet_key, pool=pool, timeout=timeout,
+                       ssh_config_file=ssh_config_file):
         return False
 
     output_dir = get_chaos_temp_dir()
@@ -321,11 +471,13 @@ def nodes_in_mode(genesis_file, mode, count, did="V4SGRU86Z58d6TV7PBUe6f",
 
 
 def resurrected_nodes_are_caught_up(genesis_file, transactions, 
-                                    did="V4SGRU86Z58d6TV7PBUe6f",
-                                    seed="000000000000000000000000Trustee1",
-                                    wallet_name="chaosindy",
-                                    wallet_key="chaosindy", pool="chaosindy",
-                                    ssh_config_file="~/.ssh/config"):
+                                    did=DEFAULT_CHAOS_DID,
+                                    seed=DEFAULT_CHAOS_SEED,
+                                    wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                                    wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                                    pool=DEFAULT_CHAOS_POOL,
+                                    timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                                    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # TODO: add support for all ledgers, not just domain ledger.
     #
     # This function assumes that kill_random_nodes has been called and a
@@ -372,8 +524,11 @@ def resurrected_nodes_are_caught_up(genesis_file, transactions,
         logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
         logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
 
-        #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
-        if ledger_status == 'synced' and catchup_transactions == int(transactions):
+        transaction_counts = transactions.split(" to ")
+        transaction_counts_len = len(transaction_counts)
+        if (ledger_status == 'synced' and
+               catchup_transactions >= int(transaction_counts[0]) and
+               catchup_transactions <= int(transaction_counts[-1])):
             matching.append(alias)
         else:
             not_matching[alias] = catchup_transactions

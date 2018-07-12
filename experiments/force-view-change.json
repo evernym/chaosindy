@@ -20,7 +20,7 @@
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
         },
-        "cleanup": {
+       "cleanup": {
             "type": "env",
             "key": "CHAOS_CLEANUP"
         }

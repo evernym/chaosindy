@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
 
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ]; do 
-  TARGET="$(readlink "$SOURCE")"
-  if [[ $SOURCE == /* ]]; then
-    SOURCE="$TARGET"
-  else
-    DIR="$( dirname "$SOURCE" )"
-    SOURCE="$DIR/$TARGET"
-  fi
-done
-RDIR="$( dirname "$SOURCE" )"
-DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-
 # Pass parameters to experiment via the environment
+# Default parameters are as follows:
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
 export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
@@ -35,10 +23,190 @@ export CHAOS_LOAD_COMMAND="/usr/bin/python3 /home/ubuntu/indy-node/scripts/perfo
 export CHAOS_LOAD_COMMAND_TIMEOUT=120
 export CHAOS_PAUSE_BEFORE_SYNCED_CHECK=300
 export CHAOS_CLEANUP=
+number_of_executions=1
 
-export PYTHONPATH=/home/ubuntu/chaosindy
+usage(){
+    echo "Usage: $0"
+    echo " required arguments: None"
+    echo " optional arguments:"
 
+    echo "   --load-client-nodes"
+    echo "       A JSON list of client node names to include in the experiment."
+    echo "         Each of these clients will be used to generate load during the"
+    echo "         experiment."
+    echo "       Default: '${CHAOS_LOAD_CLIENTS}'"
+    echo "   --load-clients-per-node"
+    echo "       The number of client processes to spawn on each of the client nodes."
+    echo "       Default: '${CHAOS_LOAD_CLIENT_COUNT}'"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   --load-transactions-per-client"
+    echo "       The number of transactions to generate by each client processes."
+    echo "       Default: '${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT}'"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   --load-transactions-range"
+    echo "       The range of transactions expected to complete during the experiment."
+    echo "         A range is required, because nodes do not need to complete"
+    echo "         syncing transactions before completing the experiment. Half of"
+    echo "         the transactions are generated after blocking the node port"
+    echo "         and half are generated after unblocking the node port. This"
+    echo "         range represents the number of transactions that are expected"
+    echo "         to sync within ${CHAOS_LOAD_COMMAND_TIMEOUT} (--load-command-timeout)"
+    echo "         seconds after unblocking the node port."
+    echo "       Default: '${CHAOS_LOAD_TRANSACTIONS}'"
+    echo "       Valid Input: Any positive number >= 1 or a range of positive"
+    echo "         numbers in the form \"<start> to <end>\", where <start> < <end>"
+    echo "         and both are >= 1"
+    echo "   --load-command"
+    echo "       The command to run in each client process on each client node to"
+    echo "         generate load during the experiment"
+    echo "       Default: '${CHAOS_LOAD_COMMAND}'"
+    echo "   --load-command-timeout"
+    echo "       How long to wait (seconds) before timing out when running the load"
+    echo "         command (--load-command)"
+    echo "       Default: ${CHAOS_LOAD_COMMAND_TIMEOUT}"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   --load-pause-after"
+    echo "       How long to wait (seconds) after generating load before checking if nodes"
+    echo "         are being synced."
+    echo "       Default: ${CHAOS_PAUSE_BEFORE_SYNCED_CHECK}"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   -c|--cleanup"
+    echo "       Remove temporary files/directories created by the experiment?"
+    echo "       Default: Yes"
+    echo "       Valid Inputs (case insensitive): yes, y, 1, no, n, 0"
+    echo "   -e|--execution-count"
+    echo "       How many times to run the experiment."
+    echo "       Default: ${number_of_executions}"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   -f|--force-into-catchup-count"
+    echo "       How many nodes to force into catchup?"
+    echo "       Default: ${CHAOS_CATCHUP_COUNT}"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   -g|--genesis-file"
+    echo "       Path to the target pool genesis transaction file."
+    echo "       Default: ${CHAOS_GENESIS_FILE}"
+    echo "   -h|--help"
+    echo "       Print script help/usage"
+    echo "   -n|--validator-nodes"
+    echo "       A JSON list of node names to include in the experiment. Usually"
+    echo "         the complete list from the genesis file. TODO: derive default"
+    echo "         from genesis file."
+    echo "       Default: '${CHAOS_VALIDATOR_NODES}'"
+    echo "   -t|--write-nym-timeout"
+    echo "       How long to wait (seconds) before timing out while writing a NYM"
+    echo "         transaction."
+    echo "       Default: ${CHAOS_WRITE_NYM_TIMEOUT}"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   -s|--seed"
+    echo "       Seed to use to create DID/Verkey pair used to get validator info"
+    echo "         via indy-cli. Must be a Trustee or Steward seed."
+    echo "       Default: ${CHAOS_SEED}"
+    echo "       Valid Input: A 32 byte string. See default above for an example."
+    exit 1
+}
+
+# Get this script's directory
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  TARGET="$(readlink "$SOURCE")"
+  if [[ $SOURCE == /* ]]; then
+    SOURCE="$TARGET"
+  else
+    DIR="$( dirname "$SOURCE" )"
+    SOURCE="$DIR/$TARGET"
+  fi
+done
+RDIR="$( dirname "$SOURCE" )"
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+# Remove the wallet used by indy-cli. The experiment will create a new one.
 sudo rm -rf ~/.indy_client
+
+# Parse arguments; preserving positional arguments
+# Positional arguments are assumed if the 'key' is not found in the following
+# case statement
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    --load-client-nodes)
+    export CHAOS_LOAD_CLIENTS=$2
+    shift # past argument
+    shift # past value
+    ;;
+    --load-clients-per-node)
+    export CHAOS_LOAD_CLIENT_COUNT=$2
+    shift # past argument
+    shift # past value
+    ;;
+    --load-transactions-per-client)
+    export CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=$2
+    shift # past argument
+    shift # past value
+    ;;
+    --load-transactions-range)
+    export CHAOS_LOAD_TRANSACTIONS=$2
+    shift # past argument
+    shift # past value
+    ;;
+    --load-command)
+    export CHAOS_LOAD_COMMAND=$2
+    shift # past argument
+    shift # past value
+    ;;
+    --load-command-timeout)
+    export CHAOS_LOAD_COMMAND_TIMEOUT=$2
+    shift # past argument
+    shift # past value
+    ;;
+    --load-pause-after)
+    export CHAOS_PAUSE_BEFORE_SYNCED_CHECK=$2
+    shift # past argument
+    shift # past value
+    ;;
+    -e|--execution-count)
+    number_of_executions=$2
+    shift # past argument
+    shift # past value
+    ;;
+    -g|--genesis-file)
+    export CHAOS_GENESIS_FILE="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -h|--help)
+    usage
+    shift # past argument
+    ;;
+    -l|--cleanup)
+    export CHAOS_CLEANUP="Y"
+    shift # past argument
+    shift # past value
+    ;;
+    -n|--validator-nodes)
+    export CHAOS_VALIDATOR_NODES='$2'
+    shift # past argument
+    shift # past value
+    ;;
+    -t|--write-nym-timeout)
+    export CHAOS_WRITE_NYM_TIMEOUT=$2
+    shift # past argument
+    shift # past value
+    ;;
+    -s|--seed)
+    export CHAOS_SEED="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+set -- "${POSITIONAL[@]}" # restore positional parameters. May be useful for customizing call to chaos binary.
 
 echo CHAOS_SEED=${CHAOS_SEED}
 echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
@@ -54,6 +222,27 @@ echo CHAOS_LOAD_COMMAND_TIMEOUT=${CHAOS_LOAD_COMMAND_TIMEOUT}
 echo CHAOS_PAUSE_BEFORE_SYNCED_CHECK=${CHAOS_PAUSE_BEFORE_SYNCED_CHECK}
 echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
 echo PYTHONPATH=${PYTHONPATH}
+echo number_of_executions=${number_of_executions}
 
 # Run the experiment
-chaos --verbose run ${DIR}/../experiments/force-catchup-blocked-port.json
+for i in $(seq 1 ${number_of_executions})
+do
+  echo "********************** Experiment Iteration $i ********************"
+  exec 5>&1
+  result=$(chaos --verbose run ${DIR}/../experiments/force-catchup-blocked-port.json 2>&1 | tee >(cat - >&5))
+
+  echo "Check for failed experiment..."
+  echo "Begin printing captured results..."
+  echo "$result"
+  echo "End printing captured results..."
+  if [ $? != 0 ]
+  then
+    echo "Failed to write nym after $i iteration(s)"
+    exit 1
+  fi
+  if echo "$result" | grep "Experiment ended with status: failed"
+  then
+    echo "Failed to write nym after $i iteration(s)"
+    exit 1
+  fi
+done

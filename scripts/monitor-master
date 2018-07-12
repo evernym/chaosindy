@@ -1,13 +1,14 @@
 import json
+from chaosindy.common import *
 from chaosindy.probes.validator_info import get_validator_info, get_chaos_temp_dir
 from os.path import expanduser
-from os import getenv
+from os import environ
 
 # TODO: use argparse to get user input
-genesis_file = getenv("CHAOS_GENESIS_FILE") or '/home/ubuntu/chaosindy/pool_transactions_genesis'
+genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_transactions_genesis')
 
 # Generate a temp dir containing JSON for each validator node
-get_validator_info(genesis_file)
+get_validator_info(genesis_file, timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT)
 temp_dir = get_chaos_temp_dir()
 
 aliases = []
@@ -23,7 +24,11 @@ for node in sorted(aliases):
     try:
         with open(filename, 'r') as f:
             validator_info = json.load(f)
-        print("{}\t{}".format( node,
-            validator_info['data']['Node_info']['Replicas_status']['{}:0'.format(node)]['Primary'] ))
+        if 'data' in validator_info.keys():
+            print("{}\t{}".format( node,
+                validator_info['data']['Node_info']['Replicas_status']['{}:0'.format(node)]['Primary'] ))
+        else:
+            print("{}\t{}".format( node,
+                validator_info['Node_info']['Replicas_status']['{}:0'.format(node)]['Primary'] ))
     except:
         print("{}\t{}".format( node, 'Unknown' ))

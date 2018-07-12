@@ -2,23 +2,12 @@ import os
 import json
 import random
 import time
+from chaosindy.common import *
 from chaosindy.execute.execute import FabricExecutor
 from chaosindy.probes.validator_info import get_chaos_temp_dir, get_validator_info
 from logzero import logger
 from multiprocessing import Pool
 from os.path import expanduser, join
-
-# Begin Constants
-
-DEFAULT_CHAOS_LOAD_COMMAND="python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 20 -n 10 -k nym -g /home/ubuntu/pool_transactions_genesis"
-DEFAULT_CHAOS_LOAD_TIMEOUT=60
-DEFAULT_CHAOS_DID="V4SGRU86Z58d6TV7PBUe6f"
-DEFAULT_CHAOS_SEED="000000000000000000000000Trustee1"
-DEFAULT_CHAOS_WALLET_NAME="chaosindy"
-DEFAULT_CHAOS_WALLET_KEY="chaosindy"
-DEFAULT_CHAOS_POOL="chaosindy"
-
-# End Constants
 
 # Begin Helper Functions
 
@@ -52,7 +41,8 @@ def get_aliases(genesis_file):
 # End Helper Functions
 
 def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
-    timeout=DEFAULT_CHAOS_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
+                  timeout=DEFAULT_CHAOS_LOAD_TIMEOUT,
+                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.info("Generating load from client %s using command >%s< and timeout >%s seconds<", client, command, timeout)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
     result = executor.execute(client, command, as_sudo=True, timeout=int(timeout))
@@ -62,7 +52,8 @@ def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
     return True
 
 def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
-    timeout=DEFAULT_CHAOS_LOAD_TIMEOUT, ssh_config_file="~/.ssh/config"):
+                           timeout=DEFAULT_CHAOS_LOAD_TIMEOUT,
+                           ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     #logger.debug("Generating load from client(s) %s in parallel", clients)
     logger.info("Generating load from client(s) %s in sequence. TODO: do this in parallel.", clients)
     nodes = map(lambda x: (x, command, timeout), json.loads(clients))
@@ -74,7 +65,7 @@ def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
         #pool.starmap(generate_load, nodes)
 
 
-def apply_iptables_rule_by_node_name(node, rule, ssh_config_file="~/.ssh/config"):
+def apply_iptables_rule_by_node_name(node, rule, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("applying iptables rule >%s< on node: %s", rule, node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
@@ -91,7 +82,7 @@ def apply_iptables_rule_by_node_name(node, rule, ssh_config_file="~/.ssh/config"
     return True
 
 
-def block_port_by_node_name(node, port, ssh_config_file="~/.ssh/config"):
+def block_port_by_node_name(node, port, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     ## 1. Block a port or port range using a firewall
     if ":" in port:
         rule = "-A INPUT -p tcp --match multiport --dports {} -j DROP".format(port)
@@ -100,7 +91,7 @@ def block_port_by_node_name(node, port, ssh_config_file="~/.ssh/config"):
     return apply_iptables_rule_by_node_name(node, rule, ssh_config_file)
 
 
-def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file="~/.ssh/config"):
+def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     do_not_fail = None
     if best_effort:
        do_not_fail = " || true"
@@ -120,7 +111,7 @@ def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file="~/
     return True
 
 
-def stop_by_node_name(node, ssh_config_file="~/.ssh/config"):
+def stop_by_node_name(node, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("stop node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
@@ -133,7 +124,7 @@ def stop_by_node_name(node, ssh_config_file="~/.ssh/config"):
     return True
 
 
-def start_by_node_name(node, ssh_config_file="~/.ssh/config"):
+def start_by_node_name(node, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("start node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
@@ -146,7 +137,7 @@ def start_by_node_name(node, ssh_config_file="~/.ssh/config"):
     return True
 
 
-def start_nodes(aliases=[], ssh_config_file="~/.ssh/config"):
+def start_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # Start all nodes listed in aliases list
     count = len(aliases)
     tried_to_start = 0
@@ -164,7 +155,7 @@ def start_nodes(aliases=[], ssh_config_file="~/.ssh/config"):
     return True
 
 
-def stop_nodes(aliases=[], ssh_config_file="~/.ssh/config"):
+def stop_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # Start all nodes listed in aliases list
     count = len(aliases)
     tried_to_stop = 0
@@ -183,7 +174,7 @@ def stop_nodes(aliases=[], ssh_config_file="~/.ssh/config"):
     return True
 
 
-def start_all_but_by_node_name(node, genesis_file, ssh_config_file="~/.ssh/config"):
+def start_all_but_by_node_name(node, genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("node: %s -- genesis_file: %s", node, genesis_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -198,7 +189,7 @@ def start_all_but_by_node_name(node, genesis_file, ssh_config_file="~/.ssh/confi
     return False
 
 
-def all_nodes_up(genesis_file, ssh_config_file="~/.ssh/config"):
+def all_nodes_up(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("genesis_file: %s -- ssh_config_file: %s", genesis_file, ssh_config_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -208,7 +199,7 @@ def all_nodes_up(genesis_file, ssh_config_file="~/.ssh/config"):
     return start_nodes(aliases, ssh_config_file)
 
 
-def unblock_node_port_all_nodes(genesis_file, best_effort=True, ssh_config_file="~/.ssh/config"):
+def unblock_node_port_all_nodes(genesis_file, best_effort=True, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("genesis_file: %s", genesis_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -247,7 +238,7 @@ def get_random_nodes(genesis_file, count):
     return selected
 
 
-def block_node_port_random(genesis_file, count, ssh_config_file="~/.ssh/config"):
+def block_node_port_random(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     selected = get_random_nodes(genesis_file, count)
@@ -284,7 +275,7 @@ def unblocked_nodes_are_caught_up(genesis_file, transactions=None,
                                   wallet_name=DEFAULT_CHAOS_WALLET_NAME,
                                   wallet_key=DEFAULT_CHAOS_WALLET_KEY,
                                   pool=DEFAULT_CHAOS_POOL,
-                                  ssh_config_file="~/.ssh/config"):
+                                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     #
@@ -326,7 +317,7 @@ def unblock_node_port_random(genesis_file, transactions=None,
                              wallet_name=DEFAULT_CHAOS_WALLET_NAME,
                              wallet_key=DEFAULT_CHAOS_WALLET_KEY,
                              pool=DEFAULT_CHAOS_POOL,
-                             ssh_config_file="~/.ssh/config"):
+                             ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     #
@@ -382,7 +373,7 @@ def unblock_node_port_random(genesis_file, transactions=None,
     return True
 
 
-def kill_random_nodes(genesis_file, count, ssh_config_file="~/.ssh/config"):
+def kill_random_nodes(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     selected = get_random_nodes(genesis_file, count)
     tried_to_kill = 0
     are_dead = 0
@@ -412,7 +403,8 @@ def resurrect_random_nodes(genesis_file, transactions=None,
                            wallet_name=DEFAULT_CHAOS_WALLET_NAME,
                            wallet_key=DEFAULT_CHAOS_WALLET_KEY,
                            pool=DEFAULT_CHAOS_POOL,
-                           ssh_config_file="~/.ssh/config"):
+                           timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                           ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # This function assumes that kill_random_nodes has been called and a
     # "nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
@@ -464,9 +456,11 @@ def resurrect_random_nodes(genesis_file, transactions=None,
         #       experiments manually.
         time.sleep(int(pause_before_synced_check))
         logger.debug("Checking if resurrected nodes are synced and report %s transactions...", transactions)
-        return nodes_are_caught_up(selected, genesis_file, transactions, did,
-                                   seed, wallet_name, wallet_key,
-                                   pool, ssh_config_file)
+        return nodes_are_caught_up(selected, genesis_file, transactions, did=did,
+                                   seed=seed, wallet_name=wallet_name,
+                                   wallet_key=wallet_key, pool=pool,
+                                   timeout=timeout,
+                                   ssh_config_file=ssh_config_file)
     return True
 
 
@@ -476,14 +470,17 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
                         wallet_name=DEFAULT_CHAOS_WALLET_NAME,
                         wallet_key=DEFAULT_CHAOS_WALLET_KEY,
                         pool=DEFAULT_CHAOS_POOL,
-                        ssh_config_file="~/.ssh/config"):
+                        timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                        ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # TODO: add support for all ledgers, not just domain ledger.
     #
     # This function assumes that kill_random_nodes has been called and a
     # "nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
     # 1. Get validator info from all nodes
-    get_validator_info(genesis_file, did, seed, wallet_name, wallet_key, pool, ssh_config_file)
+    get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
+                       wallet_key=wallet_key, pool=pool, timeout=timeout,
+                       ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
 
     matching = []
@@ -510,8 +507,6 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
         logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
         logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
 
-        #if ledger_status == 'syncing' or (ledger_status == 'synced' and catchup_transactions == int(transactions)):
-
         transaction_counts = transactions.split(" to ")
         transaction_counts_len = len(transaction_counts)
         if (ledger_status == 'synced' and
@@ -530,7 +525,7 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
     return True
 
 
-def ensure_nodes_up(genesis_file, count, ssh_config_file="~/.ssh/config"):
+def ensure_nodes_up(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("genesis_file: %s -- count: %s -- ssh_config_file: %s", genesis_file, count, ssh_config_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)

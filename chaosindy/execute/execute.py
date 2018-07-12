@@ -1,15 +1,20 @@
 import abc
 import os
+import json
 
 from collections import namedtuple
 
-from multiprocessing import Process, Queue
+from logzero import logger
+from multiprocessing import Pool, Process, Queue, Manager, cpu_count
 from queue import Empty
 
 from fabric import Connection, Config
 from paramiko import AuthenticationException
 
+from typing import List
+
 Result = namedtuple('Result', ['return_code', 'stdout', 'stderr'])
+ParallelResult = namedtuple('ParallelResult', ['host', 'return_code', 'stdout', 'stderr'])
 
 
 class RemoteExecutor(object):
@@ -103,4 +108,179 @@ class FabricExecutor(RemoteExecutor):
             if p:
                 p.terminate()
 
+        return rtn
+
+class ParallelFabricExecutor(FabricExecutor):
+    _processes = []
+    config = None
+    #f = None
+
+    #def open_print(self):
+    #    self.f = open('/tmp/corin.txt', 'a')
+
+    #def close_print(self):
+    #    self.f.close()
+
+    #def flush_print(self):
+    #    self.f.flush()
+
+    #def print(self, text):
+    #    self.f.write("{}: {}".format(os.getpid(), text))
+    #    self.flush_print()
+
+    def __init__(self, ssh_config_file=None):
+        super().__init__(ssh_config_file=ssh_config_file)
+        #self.open_print()
+        #self.print("In ParallelFabricExecutor.__init__\n")
+        # A manager for inter-process communcation (IPC)
+        self._manager = Manager()
+        # A queue to hold tasks
+        self._tasks = self._manager.Queue()
+        # A queue to hold task results
+        self._results = self._manager.Queue()
+        # Create process pool with as many processes as there are cores
+        # TODO: make self._cpu_count configurable
+        self._cpu_count = cpu_count()
+        self._pool = Pool(processes=self._cpu_count)
+        self._processes = []
+        # Initiate the worker processes
+        for i in range(self._cpu_count):
+            # Set process name
+            process_name = 'P%i' % i
+            # Create the process, and connect it to the worker function
+            new_process = Process(target=self.do_work, args=(process_name,self._tasks,self._results))
+            # Add new process to the list of processes
+            self._processes.append(new_process)
+            # Start the process
+            new_process.start()
+        # Worker processes are now waiting for work
+        #self.print("Leaving __init__\n")
+
+    def __del__(self):
+        for process in self._processes:
+            # Gracefully send SIGTERM to each process
+            process.terminate()
+        if self.f:
+            #self.print("Closing file handle...")
+            #self.close_print()
+            self.f = None
+
+    def _parallel_execute_on_host(self, results, host, action, config, user=None,
+                                  as_sudo=False, **kwargs):
+        if action == "pytest":
+            #self.print("Returning mocked ParallelResult\n")
+            results.put(ParallelResult(host, 0, "corin\n", ""))
+        else:
+            #self.print("In _parallel_execute_on_host...\n")
+            connect_timeout = kwargs.get('connect_timeout', 60)
+            connect_kwargs = kwargs.get('connect_kwargs', None)
+            #self.print("connect_timeout: {}\n".format(connect_timeout))
+            #self.print("connect_kwargs: {}\n".format(connect_kwargs))
+            #self.print("Opening connection\n")
+            with Connection(host, config=config, user=user,
+                            connect_timeout=connect_timeout,
+                            connect_kwargs=connect_kwargs) as c:
+                #self.print("Connection open\n")
+                if as_sudo:
+                    rtn = c.sudo(action, hide=True)
+                    #rtn = c.sudo(action, hide=True, pty=True)
+                else:
+                    rtn = c.run(action, hide=True)
+                    #rtn = c.run(action, hide=True, pty=True)
+
+                results.put(ParallelResult(host, rtn.return_code, rtn.stdout, rtn.stderr))
+            #self.print("Connection closed\n")
+
+    # Define worker function
+    def do_work(self, process_name, tasks, results):
+        logger.debug('[%s] routine starts', process_name)
+
+        with open('/tmp/corin.txt', 'a') as f:
+            while True:
+                #self.print("Before tasks.get()\n")
+                new_tuple = tasks.get()
+                #self.print("After tasks.get()\n")
+                if len(new_tuple) == 0:
+                    #self.print('[{}] routine quits\n'.format(process_name))
+                    logger.debug('[%s] routine quits', process_name)
+
+                    # Indicate finished
+                    results.put(ParallelResult("", -999, "", ""))
+                    break
+                else:
+                    # Unpack tuple into variables. See self.tasks.put in 'execute'
+                    # member function
+                    host = new_tuple[0]
+                    action = new_tuple[1]
+                    user = new_tuple[2]
+                    as_sudo = new_tuple[3]
+                    kwargs_dict = new_tuple[4]
+                    # TODO: Execute remote command - _parallel_execute_on_host
+                    logger.debug('Execute on host...')
+                    logger.debug('host: %s', host)
+                    logger.debug('action: %s', action)
+                    logger.debug('user: %s', user)
+                    logger.debug('as_sudo: %s', as_sudo)
+                    logger.debug('kwargs: %s', json.dumps(kwargs_dict))
+                    #self.print('Execute on host...\n')
+                    #self.print('host: {}\n'.format(host))
+                    #self.print('action: {}\n'.format(action))
+                    #self.print('user: {}\n'.format(user))
+                    #self.print('as_sudo: {}\n'.format(as_sudo))
+                    #self.print('kwargs: {}\n'.format(json.dumps(kwargs_dict)))
+                    #self.print('Before call to _parallel_execute_on_host\n')
+                    #self.print('Details about _parallel_execute_on_host: {}\n'.format(getattr(self, '_parallel_execute_on_host')))
+                    self._parallel_execute_on_host(results, host, action,
+                                                   self.config, user=user,
+                                                   as_sudo=as_sudo, **kwargs_dict)
+                    #self.print('After call to _parallel_execute_on_host\n')
+        return
+
+    def execute(self, hosts: List[str], action: str, user: str = None, as_sudo=False, **kwargs):
+        #self.print("In execute...\n")
+        #self.print("The instance's _parallel_execute_on_host function has been patched by pytest at this point...\n")
+        #self.print('Details about _parallel_execute_on_host: {}\n'.format(getattr(self, '_parallel_execute_on_host')))
+        identity_file = kwargs.pop('identity_file', None)
+        connect_kwargs = self._collect_connect_kwargs(identity_file)
+        kwargs['connect_kwargs'] = connect_kwargs
+        logger.debug('TODO: Execute on hosts...')
+        logger.debug('hosts: %s', hosts)
+        logger.debug('action: %s', action)
+        logger.debug('user: %s', user)
+        logger.debug('as_sudo: %s', as_sudo)
+        logger.debug('kwargs: %s', json.dumps(kwargs))
+        # Fill task queue
+        for host in hosts:
+            self._tasks.put((host, action, user, as_sudo, kwargs))
+
+        # Signal the do_work worker function/process to exit. An empty tuple will
+        # be the signal for a worker process to exit.
+        for host in hosts:
+            self._tasks.put(())
+
+        # Read results
+        num_finished_processes = 0
+        rtn = {}
+        while True:
+            # Read result
+            new_result = self._results.get()
+            # Have a look at the results
+            if new_result.return_code == -999:
+                # Process has finished
+                num_finished_processes += 1
+
+                if num_finished_processes == self._cpu_count:
+                    break
+            else:
+                # Output result
+                #logger.debug('host: %s rc: %d stdout: %s stderr: %s',
+                #             new_result.host, new_result.return_code,
+                #             new_result.stdout, new_result.stderr)
+                rtn[new_result.host] = {
+                   'return_code': new_result.return_code,
+                   'stdout': new_result.stdout,
+                   'stderr': new_result.stderr
+                }
+
+        #self.print("Returning {} from execute...\n".format(str(rtn)))
         return rtn

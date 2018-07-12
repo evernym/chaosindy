@@ -7,8 +7,8 @@ from logzero import logger
 
 
 def write_nym(seed, genesis_file, pool_name=None, my_wallet_name=None,
-              their_wallet_name=None, timeout=60):
-    logger.debug("seed: %s genesis_file: %s", seed, genesis_file)
+              their_wallet_name=None, timeout='60'):
+    logger.debug("seed: %s genesis_file: %s pool_name: %s my_wallet_name: %s their_wallet_name: %s timeout: %s", seed, genesis_file, pool_name, my_wallet_name, their_wallet_name, timeout)
     return run(write_nym_and_check, seed=seed, pool_name=pool_name,
                my_wallet_name=my_wallet_name,
                their_wallet_name=their_wallet_name, genesis_file=genesis_file,
