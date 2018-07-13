@@ -1,6 +1,6 @@
 fabric
 chaostoolkit==0.14.0
-python3-indy==1.4.0
+python3-indy==1.5.0.dev620
 logzero
 psutil
 pytest

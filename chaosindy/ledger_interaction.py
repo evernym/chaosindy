@@ -52,25 +52,27 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     logger.debug("pool_config: %s", pool_config)
     pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
 
+    my_wallet_config = {'id': my_wallet_name}
     try:
-        await wallet.create_wallet(pool_name, my_wallet_name, None, None, wallet_credentials)
+        await wallet.create_wallet(json.dumps(my_wallet_config), wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
         logger.exception(e)
         pass
 
-    my_wallet_handle = await wallet.open_wallet(my_wallet_name, None, wallet_credentials)
+    my_wallet_handle = await wallet.open_wallet(json.dumps(my_wallet_config), wallet_credentials)
 
     logger.debug('# 4. Create Their Wallet and Get Wallet Handle')
 
+    their_wallet_config = {'id': their_wallet_name}
     try:
-        await wallet.create_wallet(pool_name, their_wallet_name, None, None, wallet_credentials)
+        await wallet.create_wallet(json.dumps(their_wallet_config), wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
         logger.info(e)
         pass
 
-    their_wallet_handle = await wallet.open_wallet(their_wallet_name, None, wallet_credentials)
+    their_wallet_handle = await wallet.open_wallet(json.dumps(their_wallet_config), wallet_credentials)
 
     logger.debug('# 5. Create My DID')
     (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
@@ -96,7 +98,7 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     # 10. Close wallets and pool
     await wallet.close_wallet(their_wallet_handle)
     await wallet.close_wallet(my_wallet_handle)
-    await wallet.delete_wallet(their_wallet_name, wallet_credentials)
-    await wallet.delete_wallet(my_wallet_name, wallet_credentials)
+    await wallet.delete_wallet(json.dumps(their_wallet_config), wallet_credentials)
+    await wallet.delete_wallet(json.dumps(my_wallet_config), wallet_credentials)
     await pool.close_pool_ledger(pool_handle)
     await pool.delete_pool_ledger_config(pool_name)

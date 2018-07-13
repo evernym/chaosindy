@@ -2,6 +2,7 @@ import json
 from chaosindy.execute.execute import FabricExecutor
 from chaosindy.probes.validator_info import get_chaos_temp_dir, detect_primary
 from chaosindy.actions.node import stop_by_node_name, start_by_node_name, start_all_but_by_node_name
+from logzero import logger
 from time import sleep
 
 def get_primary(genesis_file, ssh_config_file="~/.ssh/config", compile_stats=True):
