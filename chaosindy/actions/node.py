@@ -3,7 +3,7 @@ import json
 import random
 import time
 from chaosindy.common import *
-from chaosindy.execute.execute import FabricExecutor
+from chaosindy.execute.execute import FabricExecutor, ParallelFabricExecutor
 from chaosindy.probes.validator_info import get_chaos_temp_dir, get_validator_info
 from logzero import logger
 from multiprocessing import Pool
@@ -43,7 +43,9 @@ def get_aliases(genesis_file):
 def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
                   timeout=DEFAULT_CHAOS_LOAD_TIMEOUT,
                   ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    logger.info("Generating load from client %s using command >%s< and timeout >%s seconds<", client, command, timeout)
+    message = """Generating load from client %s using command >%s< and timeout
+                 >%s seconds<"""
+    logger.info(message, client, command, timeout)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
     result = executor.execute(client, command, as_sudo=True, timeout=int(timeout))
     if result.return_code != 0:
@@ -54,15 +56,27 @@ def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
 def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
                            timeout=DEFAULT_CHAOS_LOAD_TIMEOUT,
                            ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    #logger.debug("Generating load from client(s) %s in parallel", clients)
-    logger.info("Generating load from client(s) %s in sequence. TODO: do this in parallel.", clients)
-    nodes = map(lambda x: (x, command, timeout), json.loads(clients))
-    for node in nodes:
-        generate_load(node[0], command=node[1], timeout=node[2],
-            ssh_config_file=ssh_config_file)
-    #with Pool(processes=4) as pool: 
-        #pool = Pool()
-        #pool.starmap(generate_load, nodes)
+    message = """Generating load from clients %s using command >%s< and timeout
+                 >%s seconds<"""
+    logger.info(message, clients, command, timeout)
+    try:
+        client_list = json.loads(clients)
+    except Exception as e:
+        message = """Failed to parse JSON clients list. The list of clients on
+                     which to generate load, must be a valid JSON list of node
+                     aliases found in your ssh config file %s"""
+        logger.error(message, ssh_config_file)
+        logger.exception(e)
+        return False
+    executor = ParallelFabricExecutor(ssh_config_file=expanduser(ssh_config_file))
+    result = executor.execute(client_list, command, as_sudo=True, timeout=int(timeout))
+
+    logger.debug("result: %s", json.dumps(result))
+    for client in client_list:
+        if result[client]['return_code'] != 0:
+            logger.error("Failed to generate load from client %s", client)
+            return False
+    return True
 
 
 def apply_iptables_rule_by_node_name(node, rule, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
@@ -492,8 +506,12 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
             with open(validator_info, 'r') as f:
                 node_info = json.load(f)
 
-            catchup_transactions = node_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
-            ledger_status = node_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1']
+            if 'data' in node_info:
+                catchup_transactions = node_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
+                ledger_status = node_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1']
+            else:
+                catchup_transactions = node_info['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
+                ledger_status = node_info['Node_info']['Catchup_status']['Ledger_statuses']['1']
         except FileNotFoundError:
             logger.info("Setting number of catchup transactions to Unknown for alias {}".format(alias))
             catchup_transactions = "Unknown"

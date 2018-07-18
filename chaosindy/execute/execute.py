@@ -113,25 +113,33 @@ class FabricExecutor(RemoteExecutor):
 class ParallelFabricExecutor(FabricExecutor):
     _processes = []
     config = None
+    # DEBUG PARALLELIZATION
     #f = None
 
+    # DEBUG PARALLELIZATION
     #def open_print(self):
     #    self.f = open('/tmp/corin.txt', 'a')
 
+    # DEBUG PARALLELIZATION
     #def close_print(self):
     #    self.f.close()
 
+    # DEBUG PARALLELIZATION
     #def flush_print(self):
     #    self.f.flush()
 
+    # DEBUG PARALLELIZATION
     #def print(self, text):
     #    self.f.write("{}: {}".format(os.getpid(), text))
     #    self.flush_print()
 
     def __init__(self, ssh_config_file=None):
         super().__init__(ssh_config_file=ssh_config_file)
+
+        # DEBUG PARALLELIZATION
         #self.open_print()
         #self.print("In ParallelFabricExecutor.__init__\n")
+
         # A manager for inter-process communcation (IPC)
         self._manager = Manager()
         # A queue to hold tasks
@@ -140,6 +148,8 @@ class ParallelFabricExecutor(FabricExecutor):
         self._results = self._manager.Queue()
         # Create process pool with as many processes as there are cores
         # TODO: make self._cpu_count configurable
+        #       On a 2 cpu client _cpu_count was set to 4 and 5 with nominal
+        #       decrease (improvement) in runtime.
         self._cpu_count = cpu_count()
         self._pool = Pool(processes=self._cpu_count)
         self._processes = []
@@ -154,32 +164,42 @@ class ParallelFabricExecutor(FabricExecutor):
             # Start the process
             new_process.start()
         # Worker processes are now waiting for work
+
+        # DEBUG PARALLELIZATION
         #self.print("Leaving __init__\n")
 
     def __del__(self):
         for process in self._processes:
             # Gracefully send SIGTERM to each process
             process.terminate()
+
+        # DEBUG PARALLELIZATION
         #if self.f:
-            #self.print("Closing file handle...")
-            #self.close_print()
-            #self.f = None
+        #    self.print("Closing file handle...")
+        #    self.close_print()
+        #    self.f = None
 
     def _parallel_execute_on_host(self, results, host, action, config, user=None,
                                   as_sudo=False, **kwargs):
         if action == "pytest":
+            # DEBUG PARALLELIZATION
             #self.print("Returning mocked ParallelResult\n")
             results.put(ParallelResult(host, 0, "corin\n", ""))
         else:
+            # DEBUG PARALLELIZATION
             #self.print("In _parallel_execute_on_host...\n")
             connect_timeout = kwargs.get('connect_timeout', 60)
             connect_kwargs = kwargs.get('connect_kwargs', None)
+
+            # DEBUG PARALLELIZATION
             #self.print("connect_timeout: {}\n".format(connect_timeout))
             #self.print("connect_kwargs: {}\n".format(connect_kwargs))
             #self.print("Opening connection\n")
+
             with Connection(host, config=config, user=user,
                             connect_timeout=connect_timeout,
                             connect_kwargs=connect_kwargs) as c:
+                # DEBUG PARALLELIZATION
                 #self.print("Connection open\n")
                 if as_sudo:
                     rtn = c.sudo(action, hide=True)
@@ -189,6 +209,7 @@ class ParallelFabricExecutor(FabricExecutor):
                     #rtn = c.run(action, hide=True, pty=True)
 
                 results.put(ParallelResult(host, rtn.return_code, rtn.stdout, rtn.stderr))
+            # DEBUG PARALLELIZATION
             #self.print("Connection closed\n")
 
     # Define worker function
@@ -197,10 +218,13 @@ class ParallelFabricExecutor(FabricExecutor):
 
         with open('/tmp/corin.txt', 'a') as f:
             while True:
+                # DEBUG PARALLELIZATION
                 #self.print("Before tasks.get()\n")
                 new_tuple = tasks.get()
+                # DEBUG PARALLELIZATION
                 #self.print("After tasks.get()\n")
                 if len(new_tuple) == 0:
+                    # DEBUG PARALLELIZATION
                     #self.print('[{}] routine quits\n'.format(process_name))
                     logger.debug('[%s] routine quits', process_name)
 
@@ -222,6 +246,8 @@ class ParallelFabricExecutor(FabricExecutor):
                     logger.debug('user: %s', user)
                     logger.debug('as_sudo: %s', as_sudo)
                     logger.debug('kwargs: %s', json.dumps(kwargs_dict))
+
+                    # DEBUG PARALLELIZATION
                     #self.print('Execute on host...\n')
                     #self.print('host: {}\n'.format(host))
                     #self.print('action: {}\n'.format(action))
@@ -230,13 +256,16 @@ class ParallelFabricExecutor(FabricExecutor):
                     #self.print('kwargs: {}\n'.format(json.dumps(kwargs_dict)))
                     #self.print('Before call to _parallel_execute_on_host\n')
                     #self.print('Details about _parallel_execute_on_host: {}\n'.format(getattr(self, '_parallel_execute_on_host')))
+
                     self._parallel_execute_on_host(results, host, action,
                                                    self.config, user=user,
                                                    as_sudo=as_sudo, **kwargs_dict)
+                    # DEBUG PARALLELIZATION
                     #self.print('After call to _parallel_execute_on_host\n')
         return
 
     def execute(self, hosts: List[str], action: str, user: str = None, as_sudo=False, **kwargs):
+        # DEBUG PARALLELIZATION
         #self.print("In execute...\n")
         #self.print("The instance's _parallel_execute_on_host function has been patched by pytest at this point...\n")
         #self.print('Details about _parallel_execute_on_host: {}\n'.format(getattr(self, '_parallel_execute_on_host')))
@@ -281,6 +310,6 @@ class ParallelFabricExecutor(FabricExecutor):
                    'stdout': new_result.stdout,
                    'stderr': new_result.stderr
                 }
-
+        # DEBUG PARALLELIZATION 
         #self.print("Returning {} from execute...\n".format(str(rtn)))
         return rtn

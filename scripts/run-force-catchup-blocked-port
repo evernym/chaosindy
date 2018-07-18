@@ -227,7 +227,7 @@ echo number_of_executions=${number_of_executions}
 # Run the experiment
 for i in $(seq 1 ${number_of_executions})
 do
-  echo "********************** Experiment Iteration $i ********************"
+  echo "********************** Experiment Iteration $i of $number_of_executions ********************"
   exec 5>&1
   result=$(chaos --verbose run ${DIR}/../experiments/force-catchup-blocked-port.json 2>&1 | tee >(cat - >&5))
 

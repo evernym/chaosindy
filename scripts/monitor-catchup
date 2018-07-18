@@ -24,7 +24,7 @@ for node in sorted(aliases):
     try:
         with open(filename, 'r') as f:
             validator_info = json.load(f)
-        if 'data' in validator_info.keys():
+        if 'data' in validator_info:
             print('{}\t{}\t{}'.format( node,
                 validator_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1'],
                 validator_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']))

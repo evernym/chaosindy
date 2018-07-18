@@ -316,11 +316,11 @@ def detect_primary(genesis_file, did=DEFAULT_CHAOS_DID,
                 node_info = json.load(f)
 
             # For each node, Indy CLI returns json in a 'data' element
-            try:
+            if 'data' in node_info:
                 primary = node_info['data']['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary']
                 primary = primary.split(":", 1)[0] if primary else None
                 mode = node_info['data']['Node_info']['Mode']
-            except KeyError as e:
+            else:
                 # For each node, validator-info script does NOT return json in a 'data' element
                 primary = node_info['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary']
                 primary = primary.split(":", 1)[0] if primary else None
@@ -413,7 +413,10 @@ def detect_mode(genesis_file, did=DEFAULT_CHAOS_DID,
         try:
             with open(validator_info, 'r') as f:
                 node_info = json.load(f)
-            mode = node_info['data']['Node_info']['Mode']
+            if 'data' in node_info:
+                mode = node_info['data']['Node_info']['Mode']
+            else:
+                mode = node_info['Node_info']['Mode']
         except FileNotFoundError:
             logger.info("Failed to load validator info for alias {}".format(alias))
             logger.info("Setting mode to Unknown for alias {}".format(alias))
