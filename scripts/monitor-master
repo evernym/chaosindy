@@ -3,6 +3,7 @@ from chaosindy.common import *
 from chaosindy.probes.validator_info import get_validator_info, get_chaos_temp_dir
 from os.path import expanduser
 from os import environ
+from shutil import rmtree
 
 # TODO: use argparse to get user input
 genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_transactions_genesis')
@@ -32,3 +33,6 @@ for node in sorted(aliases):
                 validator_info['Node_info']['Replicas_status']['{}:0'.format(node)]['Primary'] ))
     except:
         print("{}\t{}".format( node, 'Unknown' ))
+
+# Cleanup
+rmtree(temp_dir)
