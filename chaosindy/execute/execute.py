@@ -310,6 +310,6 @@ class ParallelFabricExecutor(FabricExecutor):
                    'stdout': new_result.stdout,
                    'stderr': new_result.stderr
                 }
-        # DEBUG PARALLELIZATION 
+        # DEBUG PARALLELIZATION
         #self.print("Returning {} from execute...\n".format(str(rtn)))
         return rtn

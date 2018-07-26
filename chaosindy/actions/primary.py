@@ -52,20 +52,27 @@ def stop_primary(genesis_file, ssh_config_file="~/.ssh/config", compile_stats=Tr
 def start_stopped_primary_after_view_change(genesis_file,
                                             max_checks_for_primary=6,
                                             sleep_between_checks=10,
+                                            start_backup_primaries=True,
                                             ssh_config_file="~/.ssh/config"):
     '''
     Start the node stopped by a call to stop_primary. When the primary is stopped,
     the pool will perform a viewchange. This function will not start the
-    stopped_primary until a completed viewchange is detected.
+    stopped primary until a completed viewchange is detected.
 
-    stop_primary(...) must be called before
-    start_stopped_primary_after_view_change. Otherwise the stopped_primary state
-    file in the experiment's chaos temp dir will not exist.
+    stop_primary(...) or stop_f_backup_primaries_before_primary(...) must be
+    called before start_stopped_primary_after_view_change. Otherwise the
+    stopped_primary state file in the experiment's chaos temp dir will not exist.
+
+    By default, if an experiment stops replica nodes (a.k.a. backup primaries),
+    the stopped replicas will be started before the stopped primary is started.
 
     Assumptions:
       - A "stopped_primary" file exists in the experiments chaos temp dir and
         contains a JSON object produced by a call to get_primary, which has a
         stopped_primary attribute.
+      - If a "stopped_backup_primaries" element exists in the JSON, and the
+        start_backup_primaries kwarg is True, the stopped backup primaries should
+        be started.
 
     Arguments:
       genesis_file - path to the pool genesis transaction file
@@ -74,6 +81,8 @@ def start_stopped_primary_after_view_change(genesis_file,
                                node is primary.
       sleep_between_checks - number of seconds between calls checks for which
                              node is primary.
+      start_backup_primaries - Start stopped replicas before starting stopped
+                               primary?
       ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
     '''
     output_dir = get_chaos_temp_dir()
@@ -98,25 +107,47 @@ def start_stopped_primary_after_view_change(genesis_file,
             current_primary = get_primary(genesis_file,
                                           ssh_config_file=ssh_config_file,
                                           compile_stats=True)
-            if stopped_primary != current_primary:
+            logger.debug("Check %d of %d if view change is complete", tries, max_checks_for_primary)
+            logger.debug("Stopped primary: %s", stopped_primary)
+            logger.debug("Current primary: %s", current_primary)
+            if current_primary and stopped_primary != current_primary:
+                logger.debug("View change detected!")
                 break;
             else:
+                logger.debug("View change not yet complete. Sleeping for {} seconds...".format(sleep_between_checks))
                 sleep(sleep_between_checks)
                 tries += 1
+        # Only start stopped primary and backup primaries if a viewchange
+        # completed.
         if tries < max_checks_for_primary:
+            stopped_backup_primaries = stopped_primary_dict.get('stopped_backup_primaries', None)
+            if start_backup_primaries and stopped_backup_primaries:
+                for backup_primary in stopped_backup_primaries:
+                    started = start_by_node_name(backup_primary,
+                                                 ssh_config_file=ssh_config_file)
+                    if not started:
+                        message = """Failed to start backup primary node %s"""
+                        logger.error(message, backup_primary)
+                        return False
             return start_by_node_name(stopped_primary,
                                       ssh_config_file=ssh_config_file)
     return False
 
-def start_stopped_primary(genesis_file, ssh_config_file="~/.ssh/config"):
+def start_stopped_primary(genesis_file, start_backup_primaries=True,
+                          ssh_config_file="~/.ssh/config"):
     '''
     Start the node stopped by a call to stop_primary. When the primary is stopped,
     the pool will perform a viewchange. This function starts the stopped_primary
     even if the viewchange is not complete.
 
+    By default, if an experiment stops replica nodes (a.k.a. backup primaries),
+    the stopped replicas will be started before the stopped primary is started.
+
     Arguments:
       genesis_file - path to the pool genesis transaction file
     Keyword Arguments (optional):
+      start_backup_primaries - Start stopped replicas before starting stopped
+                               primary?
       ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
     '''
     output_dir = get_chaos_temp_dir()
@@ -133,6 +164,17 @@ def start_stopped_primary(genesis_file, ssh_config_file="~/.ssh/config"):
         return False
     primary = stopped_primary_dict.get('stopped_primary', None)
     if primary:
+        stopped_backup_primaries = stopped_primary_dict.get('stopped_backup_primaries', None)
+        if stopped_backup_primaries:
+            message = """Detected stopped backup primaries %s. Starting backup
+                         primaries before starting stopped primary..."""
+            for backup_primary in stopped_backup_primaries:
+                started = start_by_node_name(backup_primary,
+                                             ssh_config_file=ssh_config_file)
+            if not started:
+                message = """Failed to start backup primary node %s"""
+                logger.error(message, backup_primary)
+                return False
         return start_by_node_name(primary, ssh_config_file=ssh_config_file)
     return False
 
@@ -141,4 +183,42 @@ def start_all_but_primary(genesis_file, ssh_config_file="~/.ssh/config", compile
                           ssh_config_file=ssh_config_file)
     if primary:
         return start_all_but_by_node_name(primary, genesis_file=genesis_file, ssh_config_file=ssh_config_file)
+    return False
+
+def stop_f_backup_primaries_before_primary(genesis_file, f=None, ssh_config_file="~/.ssh/config", compile_stats=True):
+    primary = get_primary(genesis_file, compile_stats=compile_stats,
+                          ssh_config_file=ssh_config_file)
+    if primary:
+        output_dir = get_chaos_temp_dir()
+        with open("{}/{}-validator-info".format(output_dir, primary), 'r') as vif:
+            validator_info = json.load(vif)
+        # Stop up to f-1 backup primaries
+        # Set f if not defined
+        if not f:
+            f = min(validator_info['Node_info']['Count_of_replicas'],
+                    validator_info['Pool_info']['f_value'])
+
+        backup_primaries = []
+        # No backup primaries are stopped when f == 1
+        i = 1
+        if f > 1:
+            # Starting at 1 and iterating up to, but not inclding f ensures we
+            # do not fall out of concensus by shutting down too many nodes.
+            for i in range(1, f):
+                replica = validator_info['Node_info']['Replicas_status']["{}:{}".format(primary, i)]['Primary'].split(":")[0]
+                backup_primaries.append(replica)
+                stop_by_node_name(replica, ssh_config_file=ssh_config_file)
+        # Get the next expected primary
+        next_primary = validator_info['Node_info']['Replicas_status']["{}:{}".format(primary, i+1)]['Primary'].split(":")[0]
+
+        # Stop the primary
+        stop_by_node_name(primary, ssh_config_file=ssh_config_file)
+
+        primary_data = {
+            'stopped_primary': primary,
+            'stopped_backup_primaries': backup_primaries,
+            'next_primary': next_primary
+        }
+        with open("{}/stopped_primary".format(output_dir), 'w') as f:
+            f.write(json.dumps(primary_data))
     return False

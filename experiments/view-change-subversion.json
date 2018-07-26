@@ -1,0 +1,108 @@
+{
+    "version": "1.0.0",
+    "title": "View Change Subversion",
+    "description": "Reach steady state (can write a nym), discover which node is the master (:0) and which nodes are replicas (:1, :2, :3, ...) (a.k.a. backup primaries). Determine how many nodes can be lost and still reach concensus (f) and how many replicas exist (n). Stop min(n, f)-1 backup primaries. Stop the master. Wait a reasonable amount of time for the view change to complete. Ensure the remaining backup node has become the primary. Start the stopped backup primaries. As the backup primaries start, new backup nodes should be selected. Bring up the old master. Ensure the cluster is still in consensus (can write a nym).",
+    "tags": [
+        "service",
+        "indy-node",
+        "concensus"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+       "cleanup": {
+            "type": "env",
+            "key": "CHAOS_CLEANUP"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "vcs_pool1",
+                        "my_wallet_name": "vcs_my_wallet1",
+                        "their_wallet_name": "vcs_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "stop-f-backup-primaries-before-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "stop_f_backup_primaries_before_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": " start-stopped-primary-after-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary_after_view_change",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "max_checks_for_primary": 20,
+                    "sleep_between_checks": 60,
+                    "start_backup_primaries": true
+                }
+            }
+        }
+
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "start-stopped-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "start_backup_primaries": true
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "cleanup-validator-info",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.validator_info",
+                "func": "delete_validator_info",
+                "arguments": {
+                    "cleanup": "${cleanup}"
+                }
+            }
+        }
+    ]
+}

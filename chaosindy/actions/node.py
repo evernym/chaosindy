@@ -125,15 +125,34 @@ def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file=DEF
     return True
 
 
-def stop_by_node_name(node, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def stop_by_node_name(node, gracefully=True, force=True, timeout=30, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("stop node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
-    # 1. Stop the node by alias name
-    result = executor.execute(node, "systemctl stop indy-node", as_sudo=True)
-    if result.return_code != 0:
-        logger.error("Failed to stop %s", node)
-        return False
+    if gracefully:
+        logger.debug("Attempting to stop indy-node service gracefully...")
+        # 1. Stop the node by alias name
+        result = executor.execute(node, "systemctl stop indy-node", timeout=int(timeout), as_sudo=True)
+        if result.return_code != 0:
+            logger.error("Failed to stop %s using systemctl", node)
+            if not force:
+                return False
+        else:
+            return True
+
+    if force:
+        logger.debug("Attempting to stop indy-node service forcefully...")
+        # 1. Stop the node by alias name
+        result = executor.execute(node, "kill -9 $(ps -ef | grep 'start_indy_node\|start_node_control_tool' | grep -v grep | awk '{print $2}' | xargs)", timeout=int(timeout), as_sudo=True)
+        if result.return_code != 0:
+            logger.error("Failed to forcefully stop %s using kill -9", node)
+            return False
+
+    # TODO: systemctl has been observed to hang indefinately. Perhaps a timeout
+    #       should be used when calling executor.execute above. If a timeout is
+    #       reached, a "pkill indy" or a "kill -9 <pid>" could be added as an
+    #       option. If implemented, wrap the above executor.execute in a try...
+    #       except block and then add a timeout as a kwarg.
 
     return True
 
