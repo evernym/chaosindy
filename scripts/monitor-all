@@ -1,0 +1,144 @@
+import json, sys
+from chaosindy.common import *
+from chaosindy.probes.validator_info import get_validator_info
+from os.path import expanduser
+from os import environ
+from shutil import rmtree
+from prettytable import PrettyTable
+
+pt = PrettyTable()
+
+# TODO: Move to chaosindy.probes.validator_info
+def get_service_stats(validator_info, service_key="indy-node_status"):
+    stats = {
+        'Service Status': None,
+        'Tasks': None,
+        'Memory': None,
+        'CPU': None
+    }
+    if validator_info \
+        and 'Extractions' in validator_info \
+        and service_key in validator_info['Extractions']:
+        systemctl_status_lines = validator_info['Extractions'][service_key]
+        for line in systemctl_status_lines:
+            line = line.strip()
+            if line.startswith('Active:'):
+                tokens = line.split()
+                #stats['Active'] = "{} {} {}".format(tokens[1], tokens[-2],
+                #    tokens[-1])
+                # Colons are apparently not supported. Must replace them.
+                #stats['Service Status'] = "{} {}T{}{}".format(tokens[1],
+                #    tokens[5], tokens[6].replace(':', '.'),
+                #    tokens[7].strip(';'))
+                #stats['Service Status'] = "{} {}T{}{} {} {}".format(tokens[1],
+                #    tokens[5], tokens[6].replace(':', '.'),
+                #    tokens[7].strip(';'), tokens[-2], tokens[-1])
+                stats['Service Status'] = " ".join(tokens[1:]).replace(':', '.')
+            elif line.startswith('Tasks:'):
+                tokens = line.split()
+                stats['Tasks'] = "{}".format(tokens[-1])
+            elif line.startswith('Memory:'):
+                tokens = line.split()
+                stats['Memory'] = "{}".format(tokens[-1])
+            elif line.startswith('CPU:'):
+                tokens = line.split()
+                stats['CPU'] = "{}".format(tokens[-1])
+    return stats
+
+#"indy-node_status": [
+    #"\u25cf indy-node.service - Indy Node",
+    #"   Loaded: loaded (/etc/systemd/system/indy-node.service; enabled; vendor preset: enabled)",
+    #"   Active: active (running) since Thu 2018-08-09 20:55:22 UTC; 3s ago",
+    #" Main PID: 30910 (python3)",
+    #"    Tasks: 10",
+    #"   Memory: 49.3M",
+    #"      CPU: 3.561s",
+    #"   CGroup: /system.slice/indy-node.service",
+    #"           \u251c\u250030910 python3 -O /usr/local/bin/start_indy_node Node1 0.0.0.0 9701 0.0.0.0 9702",
+    #"           \u251c\u250031284 /bin/sh -c systemctl status indy-node",
+    #"           \u2514\u250031285 systemctl status indy-node",
+    #""
+#]
+
+
+# TODO: use argparse to get user input
+genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_transactions_genesis')
+
+# Generate a temp dir containing JSON for each validator node
+get_validator_info(genesis_file, timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT)
+temp_dir = get_chaos_temp_dir()
+
+aliases = []
+with open(expanduser(genesis_file), 'r') as genesisfile:
+    for line in genesisfile:
+        aliases.append(json.loads(line)['txn']['data']['data']['alias'])
+
+# Extract Catchup_status for the domain ledger for each validator_node
+set_field_names = False
+field_names = []
+rows = []
+column_count = 0
+for node in aliases:
+    filename = "{}/{}-validator-info".format(temp_dir, node)
+    try:
+        with open(filename, 'r') as f:
+            validator_info = json.load(f)
+        if 'data' in validator_info.keys():
+            node_info = validator_info['data']['Node_info']
+            pool_info = validator_info['data']['Pool_info']
+        else:
+            node_info = validator_info['Node_info']
+            pool_info = validator_info['Pool_info']
+        replica_count = node_info['Count_of_replicas']
+        f_value = validator_info['Pool_info']['f_value']
+        mode = validator_info['Node_info']['Mode']
+        pool_ledger_size = validator_info['Node_info']['Pool_ledger_size']
+        domain_ledger_size = validator_info['Node_info']['Domain_ledger_size']
+        service_stats = get_service_stats(validator_info)
+
+        if not set_field_names:
+            field_names.append("Node")
+            for key in sorted(service_stats.keys()):
+                field_names.append(key)
+            field_names.extend(["Mode", "F", "RC", "DLS", "PLS", "Master"])
+            set_field_names = True
+        for i in range(1, replica_count):
+            replica_name = "R{}".format(i)
+            if replica_name not in field_names:
+                field_names.append("R{}".format(i))
+
+        replicas = []
+        for i in range(1, replica_count):
+            key = '{}:{}'.format(node, i)
+            if key in node_info['Replicas_status']:
+                replicas.append(node_info['Replicas_status']['{}:{}'.format(node, i)]['Primary'])
+
+        service_stats_list = []
+        for stat in sorted(service_stats.keys()):
+            service_stats_list.append(service_stats[stat])
+
+        master = node_info['Replicas_status']['{}:0'.format(node)]['Primary']
+        # Must cast to a str. Otherwise and exception may be thrown operating on
+        # a NoneType.
+        row = [node]
+        for item in service_stats_list:
+            row.append(str(item).split(':')[0])
+        row.extend([mode, f_value, replica_count, domain_ledger_size, pool_ledger_size, str(master).split(':')[0]])
+        for item in replicas:
+            row.append(str(item).split(':')[0])
+        rows.append(row)
+    except Exception as e:
+        print("{} Encontered exception: {}".format(node, e))
+pt.field_names = field_names
+for row in rows:
+    # Replica count may be different from node to node. All other columns
+    # are static. field_names will represent all possible columns for the data
+    # set. Pad rows that have fewer replicas.
+    if len(row) < len(field_names):
+        for i in range(len(field_names) - len(row)):
+            row.append("")
+    pt.add_row(row)
+print(pt)
+
+# Cleanup
+#rmtree(temp_dir)

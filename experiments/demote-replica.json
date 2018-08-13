@@ -1,0 +1,162 @@
+{
+    "version": "1.0.0",
+    "title": "Demote Replica",
+    "description": "Reach steady state (can write a nym), discover which node is the master (:0) and which nodes are replicas (:1, :2, ..., :N) (a.k.a. backup primaries). Demote the last replica (:N) followed by stopping the master (:0). Wait for a view change; checking once every 60 seconds up to 20 times (20 minutes). Nodes that are not validator nodes cannot be backup primaries. Assert that the demoted backup primary is no longer in the primary's list of connected validator nodes. Assertions in the 'method' of the experiment can be found in the journal.json. It will not cause the experiment to pass or fail from the context of chaostoolkit, but could be used to pass/fail an experiment in any context with access to the journal.json output. Lastly, ensure the cluster is still in consensus (can write a nym).",
+    "tags": [
+        "service",
+        "indy-node",
+        "replicas"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+        "ping_timeout": {
+            "type": "env",
+            "key": "CHAOS_PING_TIMEOUT"
+        },
+        "number_of_nodes": {
+            "type": "env",
+            "key": "CHAOS_DEMOTE_NODE_COUNT"
+        },
+        "selection_strategy": {
+            "type": "env",
+            "key": "CHAOS_SELECTION_STRATEGY"
+        },
+        "cleanup": {
+            "type": "env",
+            "key": "CHAOS_CLEANUP"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write a nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "rd_pool1",
+                        "my_wallet_name": "rd_my_wallet1",
+                        "their_wallet_name": "rd_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "demote-n-backup-primaries",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "stop_n_backup_primaries",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "number_of_nodes": "${number_of_nodes}",
+                    "selection_strategy": "${selection_strategy}",
+                    "stop_strategy": 3
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "force-a-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "stop_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "stop_strategy": 1
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-stopped-primary-after-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary_after_view_change",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "probe",
+            "name": "check-demoted-backup-primary-status",
+            "tolerance": true,
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.probes.primary",
+                "func": "demoted_backup_primaries_are_excluded",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            },
+            "pauses": {
+                "before": 60
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "promote-demoted-backup-primaries",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_backup_primaries",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            },
+            "pauses": {
+                "after": 60
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-stopped-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "cleanup",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.common",
+                "func": "remove_chaos_temp_dir",
+                "arguments": {
+                    "cleanup": "${cleanup}"
+                }
+            }
+        }
+    ]
+}

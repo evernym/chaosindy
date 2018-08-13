@@ -1,0 +1,134 @@
+{
+    "version": "1.0.0",
+    "title": "Replica Selection",
+    "description": "Reach steady state (can write a nym), discover which node is the master (:0) and which nodes are replicas (:1, :2, ..., :N) (a.k.a. backup primaries). Stop the last replica (:N) followed by the master (:0). Wait for a view change; checking once every 60 seconds up to 20 times (20 minutes). Ensure the cluster is still in consensus (can write a nym).",
+    "tags": [
+        "service",
+        "indy-node",
+        "replicas"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+       "cleanup": {
+            "type": "env",
+            "key": "CHAOS_CLEANUP"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write a nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "rd_pool1",
+                        "my_wallet_name": "rd_my_wallet1",
+                        "their_wallet_name": "rd_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "stop-n-backup-primaries",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "stop_n_backup_primaries",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "number_of_nodes": 1,
+                    "selection_strategy": 2,
+                    "stop_strategy": 1
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "force-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "stop_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-stopped-primary-after-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary_after_view_change",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "max_checks_for_primary": 20,
+                    "sleep_between_checks": 60,
+                    "start_backup_primaries": false
+                }
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "start-stopped-backup-primaries",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_backup_primaries",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-stopped-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.primary",
+                "func": "start_stopped_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "start_backup_primaries": false
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "cleanup-validator-info",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.validator_info",
+                "func": "delete_validator_info",
+                "arguments": {
+                    "cleanup": "${cleanup}"
+                }
+            }
+        }
+    ]
+}

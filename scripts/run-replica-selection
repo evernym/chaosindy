@@ -5,6 +5,7 @@
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
 export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_PING_TIMEOUT=10
 export CHAOS_WRITE_NYM_TIMEOUT=60
 export CHAOS_CLEANUP=Y
 export PYTHONPATH=/home/ubuntu/chaosindy
@@ -32,6 +33,11 @@ usage(){
     echo "         the complete list from the genesis file. TODO: derive default"
     echo "         from genesis file."
     echo "       Default: '${CHAOS_VALIDATOR_NODES}'"
+    echo "   -p|--ping-timeout"
+    echo "       How long to wait (seconds) before timing out while pinging the"
+    echo "         primary and it's replicas"
+    echo "       Default: ${CHAOS_PING_TIMEOUT}"
+    echo "       Valid Input: Any positive number >= 1"
     echo "   -t|--write-nym-timeout"
     echo "       How long to wait (seconds) before timing out while writing a NYM"
     echo "         transaction."
@@ -95,6 +101,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -p|--ping-timeout)
+    export CHAOS_PING_TIMEOUT=$2
+    shift # past argument
+    shift # past value
+    ;;
     -t|--write-nym-timeout)
     export CHAOS_WRITE_NYM_TIMEOUT=$2
     shift # past argument
@@ -116,6 +127,7 @@ set -- "${POSITIONAL[@]}" # restore positional parameters. May be useful for cus
 echo CHAOS_SEED=${CHAOS_SEED}
 echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
 echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_PING_TIMEOUT=${CHAOS_PING_TIMEOUT}
 echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
 echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
 echo PYTHONPATH=${PYTHONPATH}
@@ -126,7 +138,7 @@ for i in $(seq 1 ${number_of_executions})
 do
   echo "********************** Experiment Iteration $i of $number_of_executions ********************"
   exec 5>&1
-  result=$(chaos --verbose run ${DIR}/../experiments/view-change-subversion.json 2>&1 | tee >(cat - >&5))
+  result=$(chaos --verbose run ${DIR}/../experiments/replica-selection.json 2>&1 | tee >(cat - >&5))
 
   echo "Check for failed experiment..."
   echo "Begin printing captured results..."

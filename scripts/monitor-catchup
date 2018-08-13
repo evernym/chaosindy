@@ -1,6 +1,6 @@
 import json
 from chaosindy.common import *
-from chaosindy.probes.validator_info import get_validator_info, get_chaos_temp_dir
+from chaosindy.probes.validator_info import get_validator_info
 from os.path import expanduser
 from os import environ
 from shutil import rmtree

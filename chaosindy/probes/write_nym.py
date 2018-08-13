@@ -14,7 +14,6 @@ def write_nym(seed, genesis_file, pool_name=None, my_wallet_name=None,
                their_wallet_name=their_wallet_name, genesis_file=genesis_file,
                timeout=int(timeout))
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 

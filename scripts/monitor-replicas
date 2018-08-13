@@ -1,0 +1,61 @@
+import json, sys
+from chaosindy.common import *
+from chaosindy.probes.validator_info import get_validator_info
+from os.path import expanduser
+from os import environ
+from shutil import rmtree
+
+# TODO: use argparse to get user input
+genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_transactions_genesis')
+
+# Generate a temp dir containing JSON for each validator node
+get_validator_info(genesis_file, timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT)
+temp_dir = get_chaos_temp_dir()
+
+aliases = []
+with open(expanduser(genesis_file), 'r') as genesisfile:
+    for line in genesisfile:
+        aliases.append(json.loads(line)['txn']['data']['data']['alias'])
+
+# Extract Catchup_status for the domain ledger for each validator_node
+printed_heading = False
+for node in aliases:
+    filename = "{}/{}-validator-info".format(temp_dir, node)
+    try:
+        with open(filename, 'r') as f:
+            validator_info = json.load(f)
+        if 'data' in validator_info.keys():
+            node_info = validator_info['data']['Node_info']
+            pool_info = validator_info['data']['Pool_info']
+        else:
+            node_info = validator_info['Node_info']
+            pool_info = validator_info['Pool_info']
+        replicas = []
+        replica_count = node_info['Count_of_replicas']
+        f_value = validator_info['Pool_info']['f_value']
+        if not printed_heading:
+            replica_heading = ""
+            for i in range(1, replica_count):
+                replica_heading += "\tR{}".format(i)
+            print("Node\tMaster{}\tRC\tF".format(replica_heading))
+            print("")
+            printed_heading = True
+        for i in range(1, replica_count):
+            key = '{}:{}'.format(node, i)
+            if key in node_info['Replicas_status']:
+                replicas.append(node_info['Replicas_status']['{}:{}'.format(node, i)]['Primary'])
+        master = node_info['Replicas_status']['{}:0'.format(node)]['Primary']
+        # Must cast to a str before joining with a \t. Otherwise the "\t".join
+        # below will throw an exception whey trying to join a NoneType
+        print("{}\t{}\t{}\t{}\t{}".format(node, master, "\t".join(str(item) for item in replicas),
+                                          replica_count, f_value))
+    except Exception as e:
+        print("Encontered exception: {}".format(e))
+        if not printed_heading:
+            print("Node\tMaster\tReplicas")
+            printed_heading = True
+        print("{}\t{}\t{}\t{}\t{}".format( node, 'Unknown', 'Unknown',
+                                           'Unknown', 'Unknown'))
+
+# Cleanup
+#rmtree(temp_dir)

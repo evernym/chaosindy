@@ -1,0 +1,35 @@
+import json, sys
+from chaosindy.common import *
+from chaosindy.probes.validator_state import get_current_validator_state
+from os.path import expanduser
+from os import environ
+from shutil import rmtree
+
+# TODO: use argparse to get user input
+genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_transactions_genesis')
+seed = environ.get('CHAOS_SEED', '000000000000000000000000Steward1')
+
+# Generate a temp dir containing JSON for each validator node
+get_current_validator_state(genesis_file=genesis_file, seed=seed)
+temp_dir = get_chaos_temp_dir()
+
+aliases = []
+with open(expanduser(genesis_file), 'r') as genesisfile:
+    for line in genesisfile:
+        aliases.append(json.loads(line)['txn']['data']['data']['alias'])
+
+# Extract validator state from validator-state state file
+printed_heading = False
+filename = "{}/validator-state".format(temp_dir)
+print("Node\tServices")
+print("")
+with open(filename, 'r') as f:
+    validator_state = json.load(f)
+for alias in aliases:
+    if alias in validator_state:
+        print("{}\t{}".format(alias, str(validator_state[alias]['services'])))
+    else:
+        print("{}\tUnknown".format(alias))
+
+# Cleanup
+rmtree(temp_dir)

@@ -1,41 +1,15 @@
+import argparse
 import json
 import subprocess
-import tempfile
+import sys
 from chaosindy.common import *
 from chaosindy.execute.execute import FabricExecutor, ParallelFabricExecutor
 from os.path import expanduser, join
-from os import makedirs
-from psutil import Process, NoSuchProcess
 from logzero import logger
 from multiprocessing import Pool
 
-
-def get_chaos_temp_dir():
-    # Get current process info
-    myp = Process()
-    subprocess_pid = myp.pid
-    chaos_pid = None
-    # Walk all the way up the process tree
-    while(1):
-        #  Break when we find the 'chaos' process
-        if myp.name() == 'chaos':
-            logger.debug("Found 'chaos' process")
-            chaos_pid = myp.pid
-            break
-        try:
-            myp = Process(myp.ppid())
-            logger.debug("myp.name=%s", myp.name())
-        except NoSuchProcess as e:
-            logger.info("Did not find chaos pid before traversing all the way to the top of the process tree! Defaulting to %s", subprocess_pid)
-            logger.exception(e)
-            chaos_pid = subprocess_pid
-            break
-
-    logger.debug("subprocess pid: %s chaos pid: %s", subprocess_pid, chaos_pid)
-    tempdir_path = "{}/validator-info.{}".format(tempfile.gettempdir(), chaos_pid)
-    tempdir = makedirs(tempdir_path, exist_ok=True)
-    logger.debug("tempdir: %s", tempdir_path)
-    return tempdir_path
+from chaosindy.helpers import run
+from chaosindy.ledger_interaction import get_validator_state
 
 
 def get_validator_info_from_node_serial(genesis_file, 
@@ -115,6 +89,31 @@ def get_validator_info_from_node_parallel(genesis_file,
     return True
 
 
+def get_validator_info_from_sdk(genesis_file, did=DEFAULT_CHAOS_DID,
+                                seed=DEFAULT_CHAOS_SEED,
+                                wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                                wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                                pool=DEFAULT_CHAOS_POOL,
+                                timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                                ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    """
+    NYI
+
+    Get validator info using Indy SDK
+
+    Perhaps enhancing chaosindy.ledger_intaraction.get_validator_state
+    would be a good idea? It currently returns the latest pool ledger transaction
+    for each node, but could be enhanced to include a superset of data for:
+    1. What is currently included when calling get_validator_state
+    2. Everything in the response from the 'validator-info' script or
+       `ledger get-validator-info` indy-cli command
+    """
+    #output_dir = get_chaos_temp_dir()
+    #return True
+    logger.error("NYI - get_validator_info_from_sdk is not yet implemented.")
+    return False
+
+
 def get_validator_info_from_cli(genesis_file, did=DEFAULT_CHAOS_DID,
                                 seed=DEFAULT_CHAOS_SEED,
                                 wallet_name=DEFAULT_CHAOS_WALLET_NAME,
@@ -124,7 +123,8 @@ def get_validator_info_from_cli(genesis_file, did=DEFAULT_CHAOS_DID,
                                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     '''
      The following steps are required to configure the client node where
-     indy-cli will be used to retrieve validator-info:
+     indy-cli will be used to retrieve validator-info
+     (i.e. common.ValidatorInfoSource.CLI is used in experiment):
      
      1. Install indy-cli
         `$ apt-get install indy-cli`
@@ -251,7 +251,7 @@ def get_validator_info(genesis_file, did=DEFAULT_CHAOS_DID,
                        pool=DEFAULT_CHAOS_POOL,
                        timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
                        ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE,
-                       source=DEFAULT_VALIDATOR_INFO_SOURCE):
+                       source=DEFAULT_CHAOS_VALIDATOR_INFO_SOURCE):
     '''
     Validator info can be retrieved from any of the following:
       - A client that has indy-cli installed using `ledger get-validator-info`.
@@ -263,14 +263,20 @@ def get_validator_info(genesis_file, did=DEFAULT_CHAOS_DID,
         seconds stale/out-of-date.  See ValidatorInfoSource.NODE in
         chaosindy/common.
 
-    The DEFAULT_VALIDATOR_INFO_SOURCE dictates where chaos experiments will get
+    The DEFAULT_CHAOS_VALIDATOR_INFO_SOURCE dictates where chaos experiments will get
     validator information by default. 
     '''
-    if source == ValidatorInfoSource.NODE:
+    if source == ValidatorInfoSource.NODE.value:
         return get_validator_info_from_node(genesis_file, timeout=timeout,
                                             ssh_config_file=ssh_config_file)
-    elif source == ValidatorInfoSource.CLI:
+    elif source == ValidatorInfoSource.CLI.value:
         return get_validator_info_from_cli(genesis_file, did=did, seed=seed,
+                                           wallet_name=wallet_name,
+                                           wallet_key=wallet_key, pool=pool,
+                                           timeout=timeout,
+                                           ssh_config_file=ssh_config_file)
+    elif source == ValidatorInfoSource.SDK.value:
+        return get_validator_info_from_sdk(genesis_file, did=did, seed=seed,
                                            wallet_name=wallet_name,
                                            wallet_key=wallet_key, pool=pool,
                                            timeout=timeout,

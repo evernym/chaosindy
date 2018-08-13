@@ -1,0 +1,96 @@
+{
+    "version": "1.0.0",
+    "title": "Replica Selection",
+    "description": "Reach steady state (can write a nym), discover which node is the master (:0). Excluding the primary, demote enough nodes to cause f to be reduced by 1. Finally, ensure the cluster is still in consensus (can write a nym).",
+    "tags": [
+        "service",
+        "indy-node",
+        "demote"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+        "ping_timeout": {
+            "type": "env",
+            "key": "CHAOS_PING_TIMEOUT"
+        },
+       "cleanup": {
+            "type": "env",
+            "key": "CHAOS_CLEANUP"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write a nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "rd_pool1",
+                        "my_wallet_name": "rd_my_wallet1",
+                        "their_wallet_name": "rd_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "reduce-f-by-one",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "reduce_f_by_one",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "selection_strategy": 2
+                }
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "promote-demoted-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "promote_demoted_nodes",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "cleanup",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.common",
+                "func": "remove_chaos_temp_dir",
+                "arguments": {
+                    "cleanup": "${cleanup}"
+                }
+            }
+        }
+    ]
+}

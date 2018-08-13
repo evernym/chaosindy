@@ -1,21 +1,22 @@
 import os
 import json
 import random
+import subprocess
 import time
 from chaosindy.common import *
 from chaosindy.execute.execute import FabricExecutor, ParallelFabricExecutor
-from chaosindy.probes.validator_info import get_chaos_temp_dir, get_validator_info
+from chaosindy.probes.validator_info import get_validator_info
 from logzero import logger
 from multiprocessing import Pool
 from os.path import expanduser, join
 
 # Begin Helper Functions
 
-# Helper functions are not intended to be used directly by experiements. They are
-# intended to promote code reuse by functions that are for use directly by
+# Helper functions are not intended to be used directly by experiements. They
+# are intended to promote code reuse by functions that are for use directly by
 # experiments.
 
-def get_info_by_node_name(genesis_file, node):
+def get_info_by_node_name(genesis_file, node, path=None):
     aliases = []
     # Open genesis_file and load all aliases into an array
     with open(expanduser(genesis_file), 'r') as genesisfile:
@@ -23,7 +24,14 @@ def get_info_by_node_name(genesis_file, node):
             line_json = json.loads(line)
             alias = line_json['txn']['data']['data']['alias']
             if (alias == node):
-                return line_json['txn']['data']['data']
+                if not path:
+                    return line_json['txn']['data']['data']
+                else:
+                    filters = path.split(".")
+                    return_json = line_json
+                    for f in filters:
+                        return_json = return_json[f]
+                    return return_json
     return None
 
 
@@ -47,7 +55,8 @@ def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
                  >%s seconds<"""
     logger.info(message, client, command, timeout)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
-    result = executor.execute(client, command, as_sudo=True, timeout=int(timeout))
+    result = executor.execute(client, command, as_sudo=True,
+                              timeout=int(timeout))
     if result.return_code != 0:
         logger.error("Failed to generate load from client %s", client)
         return False
@@ -68,8 +77,10 @@ def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
         logger.error(message, ssh_config_file)
         logger.exception(e)
         return False
-    executor = ParallelFabricExecutor(ssh_config_file=expanduser(ssh_config_file))
-    result = executor.execute(client_list, command, as_sudo=True, timeout=int(timeout))
+    ssh_config_file=expanduser(ssh_config_file)
+    executor = ParallelFabricExecutor(ssh_config_file=ssh_config_file)
+    result = executor.execute(client_list, command, as_sudo=True,
+                              timeout=int(timeout))
 
     logger.debug("result: %s", json.dumps(result))
     for client in client_list:
@@ -85,9 +96,11 @@ def apply_iptables_rule_by_node_name(node, rule, ssh_config_file=DEFAULT_CHAOS_S
 
     ## 1. Apply iptables rule
     try:
-        result = executor.execute(node, "iptables {}".format(rule), as_sudo=True)
+        result = executor.execute(node, "iptables {}".format(rule),
+                                  as_sudo=True)
         if result.return_code != 0:
-            logger.error("Failed to apply iptables rule >%s< on node %s", rule, node)
+            logger.error("Failed to apply iptables rule >%s< on node %s", rule,
+                         node)
             return False
     except Exception as e:
         logger.exception(e)
@@ -97,6 +110,7 @@ def apply_iptables_rule_by_node_name(node, rule, ssh_config_file=DEFAULT_CHAOS_S
 
 
 def block_port_by_node_name(node, port, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    logger.debug("block node %s on port %s", node, port)
     ## 1. Block a port or port range using a firewall
     if ":" in port:
         rule = "-A INPUT -p tcp --match multiport --dports {} -j DROP".format(port)
@@ -106,7 +120,8 @@ def block_port_by_node_name(node, port, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG
 
 
 def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    do_not_fail = None
+    logger.debug("unblock node %s on port %s", node, port)
+    do_not_fail = ""
     if best_effort:
        do_not_fail = " || true"
 
@@ -124,35 +139,72 @@ def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file=DEF
 
     return True
 
+def indy_node_is_stopped(node, timeout=30,
+                         ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    """
+    Check if indy-node and indy-node-control services are stopped.
+    """
+    # TODO: Decide if `systemctl is-active indy-node` is sufficient. Until then
+    #       assume that absense of a pid is more definitive.
+    logger.debug("Ensure indy-node/indy-node-control is stopped...")
+    command = "ps -ef | grep 'start_indy_node\|start_node_control_tool'"\
+              " | grep -v grep | awk '{print $2}' | wc -l"
+    executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
+    result = executor.execute(node,
+                              command,
+                              timeout=int(timeout), as_sudo=True)
+    if result.return_code == 0 and result.stdout.strip() == "0":
+       return True
+    return False
 
-def stop_by_node_name(node, gracefully=True, force=True, timeout=30, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def stop_by_node_name(node, gracefully=True, force=True, timeout=30,
+                      ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("stop node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
     if gracefully:
         logger.debug("Attempting to stop indy-node service gracefully...")
         # 1. Stop the node by alias name
-        result = executor.execute(node, "systemctl stop indy-node", timeout=int(timeout), as_sudo=True)
+        result = executor.execute(node,
+                                  "systemctl stop indy-node indy-node-control",
+                                  timeout=int(timeout), as_sudo=True)
         if result.return_code != 0:
             logger.error("Failed to stop %s using systemctl", node)
             if not force:
                 return False
         else:
-            return True
+            # systemctl does not wait for the unit to stop. It issues a signal
+            # and moves on. The indy-node service has been observed to take up
+            # to a minute to stop. Ensure both indy-node and indy-node-control
+            # pids do not exist. Try up to 10 times with a 6 second sleep in
+            # between tries.
+            tries = 0
+            while True:
+                logger.debug("Ensuring node services are stopped: try %d...",
+                             tries)
+                if tries == 10 or indy_node_is_stopped(node, timeout=timeout,
+                    ssh_config_file=ssh_config_file) or tries == 10:
+                    break
+                tries += 1
+                time.sleep(6)
+            if tries < 10:
+                logger.debug("Node services guaranteed to be stopped.")
+                return True
+            else:
+                logger.debug("Node services are still running.")
+                return False
 
     if force:
         logger.debug("Attempting to stop indy-node service forcefully...")
         # 1. Stop the node by alias name
-        result = executor.execute(node, "kill -9 $(ps -ef | grep 'start_indy_node\|start_node_control_tool' | grep -v grep | awk '{print $2}' | xargs)", timeout=int(timeout), as_sudo=True)
+        kill_command = "kill -9 $(ps -ef |" \
+                       " grep 'start_indy_node\|start_node_control_tool' |" \
+                       " grep -v grep | awk '{print $2}' | xargs)"
+        result = executor.execute(node, kill_command, timeout=int(timeout),
+                                  as_sudo=True)
         if result.return_code != 0:
             logger.error("Failed to forcefully stop %s using kill -9", node)
             return False
-
-    # TODO: systemctl has been observed to hang indefinately. Perhaps a timeout
-    #       should be used when calling executor.execute above. If a timeout is
-    #       reached, a "pkill indy" or a "kill -9 <pid>" could be added as an
-    #       option. If implemented, wrap the above executor.execute in a try...
-    #       except block and then add a timeout as a kwarg.
 
     return True
 
@@ -205,21 +257,6 @@ def stop_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
         return False
 
     return True
-
-
-def start_all_but_by_node_name(node, genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    logger.debug("node: %s -- genesis_file: %s", node, genesis_file)
-    # 1. Get all node aliases
-    aliases = get_aliases(genesis_file)
-    logger.debug(aliases)
-
-    if node in aliases:
-       # 2. Remove alias in node parameter from list of aliases
-       aliases.remove(node)
-       # 3. Call stop_nodes
-       return start_nodes(aliases, ssh_config_file)
-    
-    return False
 
 
 def all_nodes_up(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
@@ -586,4 +623,353 @@ def ensure_nodes_up(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFI
     if are_alive < int(count):
         return False
 
+    return True
+
+def set_node_services_from_cli(genesis_file, alias, alias_did,
+                               did=DEFAULT_CHAOS_DID,
+                               services=DEFAULT_CHAOS_NODE_SERVICES,
+                               seed=DEFAULT_CHAOS_SEED,
+                               wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                               wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                               pool=DEFAULT_CHAOS_POOL,
+                               timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                               ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    # TODO: Decide if this should be a send_node_transaction abstraction instead
+    #       of specifically for changing a nodes "services" attribute.
+    '''
+     The following steps are required to configure the client node where
+     indy-cli will be used to a node
+     (i.e. common.StopStrategy.DEMOTE is used in experiment):
+
+     1. Install indy-cli
+        `$ apt-get install indy-cli`
+     2. Start indy-cli
+        `$ indy-cli`
+        `indy>`
+     3. Create pool
+        NOTE: Pool name will be a parameter for the experiments that need
+              to demote a node
+        `indy> pool create pool1 gen_txn_file=/home/ubuntu/pool_transactions_genesis`
+     4. Create wallet
+        NOTE: Wallet name and optional key will be parameters for the
+              experiments that need to demote a node
+        `indy> wallet create wallet1 key=key1`
+     5. Open wallet created in the previous step
+        `indy> wallet open wallet1 key=key1`
+        `wallet(wallet1):indy>`
+     6. Create did with a Trustee seed
+        NOTE: did will be a parameter for the experiments that need to demote
+              a node. Only Trustees and Stewards can demote a node.
+        `wallet(wallet1):indy> did new seed=000000000000000000000000Trustee1`
+     7. Open pool created in previous step
+        `wallet(wallet1):indy> pool connect pool1`
+        `pool(pool1):wallet(wallet1):indy>`
+     8. Verify the did created with the Trustee seed can retrieve validator info.
+        Validator info is only available to Trustees and Stewards. A test to see
+        if you can get validator info effectively tests if the wallet you just
+        set up will be adequate to demote/promote a node.
+        `pool(pool1):wallet(wallet1):indy> did use V4SGRU86Z58d6TV7PBUe6f`
+        `pool(pool1):wallet(wallet1):did(V4S...e6f):indy>`
+        `pool(pool1):wallet(wallet1):did(V4S...e6f):indy> ledger get-validator-info`
+     To simplify the call to this function, perform a best-effort creation of
+     pool, wallet, and did. Doing so eliminates the need to manually set them
+     up prior to running experiments. Just pass the appropriate parameters to
+     the experiment via the environment and they will be created the first time
+     the experiment is run. All subsequent runs will generate a warning/error
+     stating they already exist. Not a problem, because we are ignoring the
+     error/warning. Note that indy-cli exists with a return code of 0 even if
+     one of the commands in the file passed as a parameter fails.
+    '''
+    output_dir = get_chaos_temp_dir()
+
+    # Pool creation
+    indy_cli_command_batch = join(output_dir, "indy-cli-create-pool.in")
+    with open(indy_cli_command_batch, "w") as f:
+        f.write("pool create {} gen_txn_file={}\n".format(pool, genesis_file))
+        f.write("exit")
+    create_pool = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+
+    # Wallet creation
+    indy_cli_command_batch = join(output_dir, "indy-cli-create-wallet.in")
+    with open(indy_cli_command_batch, "w") as f:
+        if wallet_key:
+          f.write("wallet create {} key={}\n".format(wallet_name, wallet_key))
+        else:
+          f.write("wallet create {} key\n".format(wallet_name))
+        f.write("exit")
+    create_wallet = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+
+    # DID creation
+    if seed:
+        indy_cli_command_batch = join(output_dir, "indy-cli-create-did.in")
+        with open(indy_cli_command_batch, "w") as f:
+            if wallet_key:
+              f.write("wallet open {} key={}\n".format(wallet_name, wallet_key))
+            else:
+              f.write("wallet open {} key\n".format(wallet_name))
+            f.write("did new seed={}\n".format(seed))
+            f.write("exit")
+        create_did = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+
+    # Get the node's DID from the genesis transaction file. The DID can be found
+    # in the txn.data.dest attribute where txn.data.data.alias == alias passed in.
+    indy_cli_command_batch = join(output_dir, "indy-cli-demote-node.in")
+    with open(indy_cli_command_batch, "w") as f:
+        if wallet_key:
+          f.write("wallet open {} key={}\n".format(wallet_name, wallet_key))
+        else:
+          f.write("wallet open {} key\n".format(wallet_name))
+        f.write("did use {}\n".format(did))
+        f.write("pool connect {}\n".format(pool))
+        f.write("ledger node target={} alias={} services={}\n".format(alias_did, alias, services))
+        f.write("exit")
+    demote_node = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, timeout=int(timeout), shell=False)
+    return True
+
+def set_services_by_node_name(genesis_file, alias,
+                              services=DEFAULT_CHAOS_NODE_SERVICES,
+                              did=DEFAULT_CHAOS_DID,
+                              seed=DEFAULT_CHAOS_SEED,
+                              wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                              wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                              pool=DEFAULT_CHAOS_POOL,
+                              timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                              ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    """
+    Change a node's services
+    NOTE: Possible pure-python solution: https://github.com/hyperledger/indy-plenum/blob/62c8f47c20a1d204f2e90bb85f84cbf02c2b0b48/plenum/test/pool_transactions/helper.py#L413-L430
+    """
+    logger.debug("Setting %s's services to >%s<", alias, services)
+    logger.debug("Get {}'s DID from genesis_file {}".format(alias, genesis_file))
+    node_genesis_json = get_info_by_node_name(genesis_file, alias,
+                                              path="txn.data")
+    alias_did = node_genesis_json['dest']
+    logger.debug("{}'s did is {}".format(alias, alias_did))
+    return set_node_services_from_cli(genesis_file, alias, alias_did=alias_did,
+                                      services=services, did=did, seed=seed,
+                                      wallet_name=wallet_name,
+                                      wallet_key=wallet_key, pool=pool,
+                                      timeout=timeout,
+                                      ssh_config_file=ssh_config_file)
+
+def demote_by_node_name(genesis_file, alias,
+                        services=DEFAULT_CHAOS_NODE_SERVICES,
+                        did=DEFAULT_CHAOS_DID,
+                        seed=DEFAULT_CHAOS_SEED,
+                        wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                        wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                        pool=DEFAULT_CHAOS_POOL,
+                        timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                        ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    """
+    Demote a node by setting it's "services" attribute to and empty list/string.
+    """
+    logger.debug("Demoting {}".format(alias))
+    return set_services_by_node_name(genesis_file, alias, services="", did=did,
+                                     seed=seed, wallet_name=wallet_name,
+                                     wallet_key=wallet_key, pool=pool,
+                                     timeout=timeout,
+                                     ssh_config_file=ssh_config_file)
+
+def restart_node(genesis_file, alias,
+                 timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                 stop_strategy=StopStrategy.SERVICE.value,
+                 ssh_config_file="~/.ssh/config"):
+    """
+    Restart a node
+
+    Arguments:
+      genesis_file - path to the pool genesis transaction file
+      alias - Node to restart. Must be a name/alias found in the genesis_file
+    Keyword Arguments (optional):
+      timeout - Timeout in seconds.
+      stop_strategy - See chaosindy.common.StopStrategy for options. Defaults to
+                      StopStrategy.SERVICE.value
+      ssh_config_file - SSH config file. Defaults to ~/.ssh/config
+    """
+    logger.debug("Restarting {}".format(alias))
+    config = {
+      'stop_strategy': StopStrategy.SERVICE.value
+    }
+
+    status = stop_by_strategy(genesis_file, alias,
+                              config.get('stop_strategy', None),
+                              timeout=timeout, ssh_config_file=ssh_config_file)
+    if status:
+        status = start_by_strategy(genesis_file, alias, config, timeout=timeout,
+                                   ssh_config_file=ssh_config_file)
+        if not status:
+            logger.error("Failed to start {}".format(alias))
+    else:
+        logger.error("Failed to stop {}".format(alias))
+
+    return status
+
+def promote_by_node_name(genesis_file, alias,
+                         services=DEFAULT_CHAOS_NODE_SERVICES,
+                         did=DEFAULT_CHAOS_DID,
+                         seed=DEFAULT_CHAOS_SEED,
+                         wallet_name=DEFAULT_CHAOS_WALLET_NAME,
+                         wallet_key=DEFAULT_CHAOS_WALLET_KEY,
+                         pool=DEFAULT_CHAOS_POOL,
+                         timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                         ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    """
+    Promote a node by setting it's "services" attribute to and empty
+    list/string.
+    """
+    logger.debug("Promoting {}".format(alias))
+    status = set_services_by_node_name(genesis_file, alias,
+                                       services="VALIDATOR",
+                                       did=did, seed=seed,
+                                       wallet_name=wallet_name,
+                                       wallet_key=wallet_key, pool=pool,
+                                       timeout=timeout,
+                                       ssh_config_file=ssh_config_file)
+
+    if status:
+        logger.debug("Restart {}".format(alias))
+        # Restart nodes that are promoted. Doing so triggers catchup. Otherwise
+        # catch up will only occur "after 2 checkpoint generations are stashed"
+        # (Nikita Spivachuk).
+        # The following issue changed the node promotion workflow to require a
+        # node restart: https://jira.hyperledger.org/browse/INDY-1297
+        status = restart_node(genesis_file, alias, timeout=timeout,
+                              ssh_config_file=ssh_config_file)
+        if not status:
+            logger.error("Failed to restart {}".format(alias))
+    else:
+        logger.error("Failed to promote {}".format(alias))
+
+    return status
+
+def stop_by_strategy(genesis_file, alias, stop_strategy,
+                     timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                     ssh_config_file="~/.ssh/config"):
+    """
+    Assuptions:
+        - A <alias>-validator-info file contains validator info for the given
+          alias
+    """
+    output_dir = get_chaos_temp_dir()
+    succeeded = False
+    operation = "stop/block/demote/kill"
+    details = {
+        "stop_strategy": stop_strategy
+    }
+    if stop_strategy == StopStrategy.SERVICE.value:
+        # "stop" indy-node service
+        succeeded = stop_by_node_name(alias, timeout=timeout,
+            ssh_config_file=ssh_config_file)
+        operation = "stop"
+    elif stop_strategy == StopStrategy.PORT.value:
+        with open("{}/{}-validator-info".format(output_dir, alias), 'r') as vif:
+            validator_info = json.load(vif)
+            # "stop/block" inbound messages from clients and other nodes
+            details['client_port'] = str(validator_info['Node_info']['Client_port'])
+            details['node_port'] = str(validator_info['Node_info']['Node_port'])
+            succeeded = block_port_by_node_name(alias, details['client_port'],
+                ssh_config_file=ssh_config_file)
+            succeeded = block_port_by_node_name(alias, details['node_port'],
+                ssh_config_file=ssh_config_file)
+        operation = "block"
+    elif stop_strategy == StopStrategy.DEMOTE.value:
+        # "stop" participating in consensus
+        succeeded = demote_by_node_name(genesis_file, alias,
+            timeout=timeout, ssh_config_file=ssh_config_file)
+        operation = "demote"
+    elif stop_strategy == StopStrategy.KILL.value:
+        # "stop/kill" indy-node service
+        succeeded = stop_by_node_name(alias, gracefully=False, force=True,
+            timeout=timeout, ssh_config_file=ssh_config_file)
+        operation = "kill"
+    else:
+        message = """Stop strategy %s not supported or not found. The following
+                     operation are supported: %s"""
+        logger.error(message, stop_strategy, operation)
+        return False
+    if not succeeded:
+        message = """Failed to %s %s"""
+        logger.error(message, operation, alias)
+        return False
+    return details
+
+
+def start_by_strategy(genesis_file, alias, details,
+                      timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                      ssh_config_file="~/.ssh/config"):
+    succeeded = False
+    operation = "start/unblock/promote"
+    stop_strategy = details.get('stop_strategy', None)
+    if (stop_strategy == StopStrategy.SERVICE.value
+        or stop_strategy == StopStrategy.KILL.value):
+        succeeded = start_by_node_name(alias, ssh_config_file=ssh_config_file)
+        operation = "start"
+    elif stop_strategy == StopStrategy.PORT.value:
+        client_port = details.get('client_port', None)
+        node_port = details.get('node_port', None)
+        if not (client_port or node_port):
+            message ="""Missing client_port and/or node_port element in
+                        stopped_replicas state file {} for {}"""
+            logger.error(message.format(stopped_replicas_file, alias))
+            return False
+        client_port_unblocked = unblock_port_by_node_name(alias,
+            client_port, ssh_config_file=ssh_config_file)
+        node_port_unblocked = unblock_port_by_node_name(alias,
+            node_port, ssh_config_file=ssh_config_file)
+        succeeded = (client_port_unblocked and node_port_unblocked)
+        operation = "unblock"
+    elif stop_strategy == StopStrategy.DEMOTE.value:
+        succeeded = promote_by_node_name(genesis_file, alias,
+            timeout=timeout, ssh_config_file=ssh_config_file)
+        operation = "promote"
+    else:
+        message = """Stop strategy %s not supported or not found."""
+        logger.error(message, stop_strategy)
+        return False
+    if not succeeded:
+        message = """Failed to %s %s"""
+        logger.error(message, operation, backup_primary)
+        return False
+    return True
+
+
+def reduce_f_by_one(genesis_file,
+                    selection_strategy=SelectionStrategy.REVERSE.value,
+                    ssh_config_file="~/.ssh/config"):
+    if not SelectionStrategy.has_value(selection_strategy):
+        message = """Invalid selection strategy.
+                     chaosindy.common.SelectionStrategy does not contain value
+                     {}"""
+        logger.error(message.format(selection_strategy))
+        return False
+
+    aliases = get_aliases(genesis_file)
+
+    # Determine the nodes to demote based on the SelectionStrategy
+    nodes_to_demote = []
+    number_of_nodes = 3
+    if selection_strategy == SelectionStrategy.RANDOM.value:
+        nodes_to_demote_random = []
+        # Use a copy of the list of nodes to demote so randomly selected nodes
+        # do not get randomly selected more than once.
+        nodes_to_demote_copy = nodes_to_demote.copy()
+        for i in range(number_of_nodes):
+            random_node = random.choice(nodes_to_demote_copy)
+            nodes_to_demote_random.append(random_node)
+            # Remove the random_node so it doesn't get selected again.
+            nodes_to_demote_copy.remove(random_node)
+        nodes_to_demote = nodes_to_demote_random
+    elif selection_strategy == SelectionStrategy.REVERSE.value:
+        nodes_to_demote = list(reversed(nodes_to_demote))[0:number_of_nodes]
+    elif selection_strategy == SelectionStrategy.FORWARD.value:
+        nodes_to_demote = nodes_to_demote[0:number_of_nodes]
+
+    # TODO: write demoted nodes to a state file
+
+    return True
+
+
+def promote_demoted_nodes(genesis_file, ssh_config_file="~/.ssh/config"):
+    # TODO: read demoted nodes from a state file
     return True

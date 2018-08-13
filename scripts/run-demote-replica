@@ -5,7 +5,10 @@
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
 export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_PING_TIMEOUT=60
 export CHAOS_WRITE_NYM_TIMEOUT=60
+export CHAOS_DEMOTE_NODE_COUNT=1
+export CHAOS_SELECTION_STRATEGY=2
 export CHAOS_CLEANUP=Y
 export PYTHONPATH=/home/ubuntu/chaosindy
 number_of_executions=1
@@ -18,6 +21,12 @@ usage(){
     echo "       Remove temporary files/directories created by the experiment?"
     echo "       Default: Yes"
     echo "       Valid Inputs (case insensitive): yes, y, 1, no, n, 0"
+    echo "   -d|--demote-node-count"
+    echo "       How many backup primaries (replicas) to demote."
+    echo "       Default: ${CHAOS_DEMOTE_NODE_COUNT}"
+    echo "       Valid Input: Any positive number >= 1. A number higher than the"
+    echo "                    number of replicas (less the master) will result"
+    echo "                    in all replicas but the master being demoted."
     echo "   -e|--execution-count"
     echo "       How many times to run the experiment."
     echo "       Default: ${number_of_executions}"
@@ -32,6 +41,15 @@ usage(){
     echo "         the complete list from the genesis file. TODO: derive default"
     echo "         from genesis file."
     echo "       Default: '${CHAOS_VALIDATOR_NODES}'"
+    echo "   -o|--selection-order"
+    echo "       Order in which replicas are selected for demotion."
+    echo "       Valid Input: 1 (FORWARD), 2 (REVERSE), 3 (RANDOM)"
+    echo "       Default: '${CHAOS_SELECTION_STRATEGY}'"
+    echo "   -p|--ping-timeout"
+    echo "       How long to wait (seconds) before timing out while pinging the"
+    echo "         primary and it's replicas"
+    echo "       Default: ${CHAOS_PING_TIMEOUT}"
+    echo "       Valid Input: Any positive number >= 1"
     echo "   -t|--write-nym-timeout"
     echo "       How long to wait (seconds) before timing out while writing a NYM"
     echo "         transaction."
@@ -76,6 +94,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -d|--demote-node-count)
+    export CHAOS_DEMOTE_NODE_COUNT=$2
+    shift # past argument
+    shift # past value
+    ;;
     -e|--execution-count)
     number_of_executions=$2
     shift # past argument
@@ -90,8 +113,18 @@ case $key in
     usage
     shift # past argument
     ;;
+    -o|--selection-order)
+    export CHAOS_SELECTION_STRATEGY=$2
+    shift # past argument
+    shift # past value
+    ;;
     -n|--validator-nodes)
     export CHAOS_VALIDATOR_NODES='$2'
+    shift # past argument
+    shift # past value
+    ;;
+    -p|--ping-timeout)
+    export CHAOS_PING_TIMEOUT=$2
     shift # past argument
     shift # past value
     ;;
@@ -116,7 +149,10 @@ set -- "${POSITIONAL[@]}" # restore positional parameters. May be useful for cus
 echo CHAOS_SEED=${CHAOS_SEED}
 echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
 echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_PING_TIMEOUT=${CHAOS_PING_TIMEOUT}
 echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
+echo CHAOS_DEMOTE_NODE_COUNT=${CHAOS_DEMOTE_NODE_COUNT}
+echo CHAOS_SELECTION_STRATEGY=${CHAOS_SELECTION_STRATEGY}
 echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
 echo PYTHONPATH=${PYTHONPATH}
 echo number_of_executions=${number_of_executions}
@@ -126,7 +162,7 @@ for i in $(seq 1 ${number_of_executions})
 do
   echo "********************** Experiment Iteration $i of $number_of_executions ********************"
   exec 5>&1
-  result=$(chaos --verbose run ${DIR}/../experiments/view-change-subversion.json 2>&1 | tee >(cat - >&5))
+  result=$(chaos --verbose run ${DIR}/../experiments/demote-replica.json 2>&1 | tee >(cat - >&5))
 
   echo "Check for failed experiment..."
   echo "Begin printing captured results..."

@@ -1,5 +1,5 @@
 import json
-from chaosindy.probes.validator_info import get_chaos_temp_dir
+from chaosindy.common import get_chaos_temp_dir
 from logzero import logger
 from os.path import expanduser, join
 from os import remove
