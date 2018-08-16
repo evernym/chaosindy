@@ -6,32 +6,31 @@ from chaosindy.common import *
 
 from logzero import logger
 
-default_pool_name = 'pool1'
-default_my_wallet_name = 'my_wallet1'
-default_their_wallet_name = 'their_wallet1'
-wallet_credentials = json.dumps({"key": "wallet"})
-pool_genesis_txn_path = '/home/lovesh/dev/chaos/pool_transactions_genesis'
-seed_trustee1 = '000000000000000000000000Trustee1'
-seed_steward1 = '000000000000000000000000Steward1'
-
 
 # TODO: clean up (beyond closing the handle) my_wallet and their_wallet?
 async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
-                              their_wallet_name=None, genesis_file=None):
+                              my_wallet_key=None, their_wallet_name=None,
+                              their_wallet_key=None, genesis_file=None):
     if seed is None:
-        seed = seed_trustee1
+        seed = DEFAULT_CHAOS_SEED
 
     if pool_name is None:
-        pool_name = default_pool_name
+        pool_name = DEFAULT_CHAOS_POOL
 
     if my_wallet_name is None:
-        my_wallet_name = default_my_wallet_name
+        my_wallet_name = DEFAULT_CHAOS_MY_WALLET_NAME
+
+    if my_wallet_key is None:
+        my_wallet_key = DEFAULT_CHAOS_WALLET_KEY
 
     if their_wallet_name is None:
-        their_wallet_name = default_their_wallet_name
+        their_wallet_name = DEFAULT_CHAOS_THEIR_WALLET_NAME
+
+    if their_wallet_key is None:
+        their_wallet_key = DEFAULT_CHAOS_WALLET_KEY
 
     if genesis_file is None:
-        genesis_file = pool_genesis_txn_path
+        genesis_file = DEFAULT_CHAOS_GENEIS_FILE
 
     logger.debug('# 0. Set protocol version to 2')
     try:
@@ -48,42 +47,48 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
         await pool.create_pool_ledger_config(pool_name, pool_config)
     except IndyError as e:
         logger.info("Handled IndyError")
-        logger.exception(e)
+        #logger.exception(e)
         pass
 
     logger.debug("pool_config: %s", pool_config)
-    pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
+    pool_handle = await pool.open_pool_ledger(pool_name, "{}")
     logger.debug("pool_handle is set")
 
-    my_wallet_config = {'id': my_wallet_name}
+    my_wallet_config = json.dumps({'id': my_wallet_name})
+    my_wallet_credentials = json.dumps({"key": my_wallet_key})
     try:
-        logger.debug("create_wallet: %s with config %s", my_wallet_name, json.dumps(my_wallet_config))
-        await wallet.create_wallet(json.dumps(my_wallet_config), wallet_credentials)
+        logger.debug("create_wallet: %s with config %s", my_wallet_name,
+                     my_wallet_config)
+        await wallet.create_wallet(my_wallet_config, my_wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
-        logger.exception(e)
+        #logger.exception(e)
         pass
 
-    my_wallet_handle = await wallet.open_wallet(json.dumps(my_wallet_config), wallet_credentials)
+    my_wallet_handle = await wallet.open_wallet(my_wallet_config,
+                                                my_wallet_credentials)
 
     logger.debug('# 4. Create Their Wallet and Get Wallet Handle')
 
-    their_wallet_config = {'id': their_wallet_name}
+    their_wallet_config = json.dumps({'id': their_wallet_name})
+    their_wallet_credentials = json.dumps({'key': their_wallet_key})
     try:
-        await wallet.create_wallet(json.dumps(their_wallet_config), wallet_credentials)
+        await wallet.create_wallet(their_wallet_config,
+                                   their_wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
         logger.info(e)
         pass
 
-    their_wallet_handle = await wallet.open_wallet(json.dumps(their_wallet_config), wallet_credentials)
+    their_wallet_handle = await wallet.open_wallet(their_wallet_config,
+                                                   their_wallet_credentials)
 
     logger.debug('# 5. Create My DID')
     (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
 
     logger.debug('# 6. Create Their DID from Trustee1 seed')
     (their_did, their_verkey) = await did.create_and_store_my_did(their_wallet_handle,
-                                                                  json.dumps({"seed": seed_trustee1}))
+                                                                  json.dumps({"seed": seed}))
 
     await did.store_their_did(my_wallet_handle, json.dumps({'did': their_did, 'verkey': their_verkey}))
 
@@ -102,14 +107,42 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     # 10. Close wallets and pool
     await wallet.close_wallet(their_wallet_handle)
     await wallet.close_wallet(my_wallet_handle)
-    await wallet.delete_wallet(json.dumps(their_wallet_config), wallet_credentials)
-    await wallet.delete_wallet(json.dumps(my_wallet_config), wallet_credentials)
+
+    # Not sure why, but after upgradeing to indy-node 1.6~X, delete_wallet
+    # seems to fail with a WalletNotFound exception.
+    try:
+        await wallet.delete_wallet(their_wallet_config,
+                                   their_wallet_credentials)
+    except Exception as e:
+        logger.info("Best-effort deletion of wallet %s failed.",
+                    their_wallet_name) 
+        #logger.exception(e)
+        pass
+
+    # Not sure why, but after upgradeing to indy-node 1.6~X, delete_wallet
+    # seems to fail with a WalletNotFound exception.
+    try:
+        await wallet.delete_wallet(my_wallet_config, my_wallet_credentials)
+    except Exception as e:
+        logger.info("Best-effort deletion of wallet %s failed.", my_wallet_name)
+        #logger.exception(e)
+        pass
+
     await pool.close_pool_ledger(pool_handle)
-    await pool.delete_pool_ledger_config(pool_name)
+
+    # Not sure why, but after upgradeing to indy-node 1.6~X,
+    # delete_pool_ledger_config seems to fail with a CommonIOError exception.
+    try:
+        await pool.delete_pool_ledger_config(pool_name)
+    except Exception as e:
+        logger.info("Best-effort deletion of %s pool ledger config failed.",
+                    pool_name) 
+        #logger.exception(e)
+        pass
 
 
-async def get_validator_state(seed=None, pool_name=None, wallet_name=None,
-                              genesis_file=None):
+async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
+                              wallet_name=None, wallet_key=None):
     """
     Not to be confused with the validator-info script or the indy-cli
     `ledger get-validator-info`.
@@ -123,16 +156,19 @@ async def get_validator_state(seed=None, pool_name=None, wallet_name=None,
     #  { dest1:{'alias':value1, 'blskey':value1, ...} , dest2:{'alias':value2, 'blskey':value2, ...}, ...}
 
     if seed is None:
-        seed = seed_steward1
+        seed = DEFAULT_CHAOS_STEWARD_SEED
 
     if pool_name is None:
-        pool_name = default_pool_name
+        pool_name = DEFAULT_CHAOS_POOL
 
     if wallet_name is None:
-        wallet_name = default_my_wallet_name
+        wallet_name = DEFAULT_CHAOS_WALLET_NAME
+
+    if wallet_key is None:
+        wallet_key = DEFAULT_CHAOS_WALLET_KEY
 
     if genesis_file is None:
-        genesis_file = pool_genesis_txn_path
+        genesis_file = DEFAULT_CHAOS_GENEIS_FILE
 
     logger.debug('# 0. Set protocol version to 2')
     try:
@@ -149,25 +185,25 @@ async def get_validator_state(seed=None, pool_name=None, wallet_name=None,
         await pool.create_pool_ledger_config(pool_name, pool_config)
     except IndyError as e:
         logger.info("Handled IndyError")
-        logger.exception(e)
+        #logger.exception(e)
         pass
 
     logger.debug("# 2. Open pool ledger - pool_config: %s", pool_config)
-    pool_handle = await pool.open_pool_ledger(pool_name, pool_config)
+    pool_handle = await pool.open_pool_ledger(pool_name, "{}")
     logger.debug("pool_handle is set")
 
-    wallet_config = {'id': wallet_name}
+    wallet_config = json.dumps({'id': wallet_name})
+    wallet_credentials = json.dumps({'key': wallet_key})
     try:
-        logger.debug("# 3. Create wallet %s with config %s", wallet_name,
-                     json.dumps(wallet_config))
-        await wallet.create_wallet(json.dumps(wallet_config), wallet_credentials)
+        logger.debug("# 3. Create wallet %s with config %s credentials %s",
+                     wallet_name, wallet_config, wallet_credentials)
+        await wallet.create_wallet(wallet_config, wallet_credentials)
     except IndyError as e:
         logger.info("Handled IndyError")
-        logger.exception(e)
+        #logger.exception(e)
         pass
 
-    wallet_handle = await wallet.open_wallet(json.dumps(wallet_config),
-                                             wallet_credentials)
+    wallet_handle = await wallet.open_wallet(wallet_config, wallet_credentials)
 
     try:
         logger.debug('# 4. Create My DID')
@@ -177,7 +213,7 @@ async def get_validator_state(seed=None, pool_name=None, wallet_name=None,
         # TODO: Generate (my_did, my_verkey) tuple from seed (like DidUtils::create_my_did)
         my_did = "Th7MpTaRZVRYnPiabds81Y"
         logger.info("Handled IndyError")
-        logger.exception(e)
+        #logger.exception(e)
         pass
 
     end_of_ledger = False
@@ -216,7 +252,8 @@ async def get_validator_state(seed=None, pool_name=None, wallet_name=None,
             validators[current_dest] = {}
 
         for key in result_data_txn_data_data.keys():
-            # Update attribute value of the destination if the attributes exists in the current transaction dump
+            # Update attribute value of the destination if the attributes exists
+            # in the current transaction dump
             try:
                 validators[current_dest][key]  = result_data_txn_data_data[key]
             except KeyError:
@@ -238,6 +275,24 @@ async def get_validator_state(seed=None, pool_name=None, wallet_name=None,
 
     logger.debug('# 5. Close wallets and pool')
     await wallet.close_wallet(wallet_handle)
-    await wallet.delete_wallet(json.dumps(wallet_config), wallet_credentials)
+
+    # Not sure why, but aftering upgradeing to indy-node 1.6~X, delete_wallet
+    # seems to fail with a WalletNotFound exception.
+    try:
+        await wallet.delete_wallet(wallet_config, wallet_credentials)
+    except Exception as e:
+        logger.info("Best-effort deletion of wallet %s failed.", wallet_name) 
+        #logger.exception(e)
+        pass
+
     await pool.close_pool_ledger(pool_handle)
-    await pool.delete_pool_ledger_config(pool_name)
+
+    # Not sure why, but after upgradeing to indy-node 1.6~X,
+    # delete_pool_ledger_config seems to fail with a CommonIOError exception.
+    try:
+        await pool.delete_pool_ledger_config(pool_name)
+    except Exception as e:
+        logger.info("Best-effort deletion of %s pool ledger config failed.",
+                    pool_name) 
+        #logger.exception(e)
+        pass

@@ -1,8 +1,10 @@
+import json
 import shutil
 import tempfile
 from enum import Enum
 from logzero import logger
 from os import makedirs
+from os.path import expanduser
 from psutil import Process, NoSuchProcess
 
 def get_chaos_temp_dir():
@@ -47,6 +49,35 @@ def remove_chaos_temp_dir(cleanup=True):
         logger.info("Skip removal of %s.", temp_dir)
     return True
 
+def get_info_by_node_name(genesis_file, node, path=None):
+    aliases = []
+    # Open genesis_file and load all aliases into an array
+    with open(expanduser(genesis_file), 'r') as genesisfile:
+        for line in genesisfile:
+            line_json = json.loads(line)
+            alias = line_json['txn']['data']['data']['alias']
+            if (alias == node):
+                if not path:
+                    return line_json['txn']['data']['data']
+                else:
+                    filters = path.split(".")
+                    return_json = line_json
+                    for f in filters:
+                        return_json = return_json[f]
+                    return return_json
+    return None
+
+
+def get_aliases(genesis_file):
+    aliases = []
+    # Open genesis_file and load all aliases into an array
+    with open(expanduser(genesis_file), 'r') as genesisfile:
+        for line in genesisfile:
+            line_json = json.loads(line)
+            alias = line_json['txn']['data']['data']['alias']
+            aliases.append(alias)
+    return aliases
+
 class ValidatorInfoSource(Enum):
     NODE = 1 # validator-info script executed on each node
     CLI = 2 # `ledger get-validator-info` executed via indy-cli
@@ -89,16 +120,22 @@ class StopStrategy(Enum):
     def has_value(cls, value):
         return any(value == item.value for item in cls)
 
-
+# Please keep defaults in lexically acending order by name
+DEFAULT_CHAOS_DID="V4SGRU86Z58d6TV7PBUe6f"
+DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT=20
+DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT=20
 DEFAULT_CHAOS_LOAD_COMMAND="python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 20 -n 10 -k nym -g /home/ubuntu/pool_transactions_genesis"
 DEFAULT_CHAOS_LOAD_TIMEOUT=60
-DEFAULT_CHAOS_DID="V4SGRU86Z58d6TV7PBUe6f"
 DEFAULT_CHAOS_NODE_SERVICES="VALIDATOR"
-DEFAULT_CHAOS_SEED="000000000000000000000000Trustee1"
-DEFAULT_CHAOS_WALLET_NAME="chaosindy"
-DEFAULT_CHAOS_WALLET_KEY="chaosindy"
+DEFAULT_CHAOS_PAUSE=60
 DEFAULT_CHAOS_POOL="chaosindy"
-DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT=10
+DEFAULT_CHAOS_TRUSTEE_SEED="000000000000000000000000Trustee1"
+DEFAULT_CHAOS_STEWARD_SEED="000000000000000000000000Steward1"
+DEFAULT_CHAOS_SEED=DEFAULT_CHAOS_TRUSTEE_SEED
 DEFAULT_CHAOS_SSH_CONFIG_FILE="~/.ssh/config"
-DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT=20
 DEFAULT_CHAOS_VALIDATOR_INFO_SOURCE=ValidatorInfoSource.NODE.value
+DEFAULT_CHAOS_WALLET_NAME="chaosindy"
+DEFAULT_CHAOS_MY_WALLET_NAME=DEFAULT_CHAOS_WALLET_NAME
+DEFAULT_CHAOS_THEIR_WALLET_NAME="their_"+DEFAULT_CHAOS_WALLET_NAME
+DEFAULT_CHAOS_WALLET_KEY="chaosindy"
+DEFAULT_CHAOS_GENESIS_FILE="/home/ubuntu/pool_transactions_genesis"

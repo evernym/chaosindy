@@ -4,6 +4,7 @@ import subprocess
 import sys
 from chaosindy.common import *
 from chaosindy.execute.execute import FabricExecutor, ParallelFabricExecutor
+from chaosindy.probes.validator_state import get_current_validator_list
 from os.path import expanduser, join
 from logzero import logger
 from multiprocessing import Pool
@@ -307,12 +308,27 @@ def detect_primary(genesis_file, did=DEFAULT_CHAOS_DID,
             aliases.append(json.loads(line)['txn']['data']['data']['alias'])
     logger.debug(str(aliases))
 
+    # Get the list of currently participating validator nodes
+    current_validators = get_current_validator_list(genesis_file=genesis_file,
+                                                    seed=seed,
+                                                    pool_name=pool,
+                                                    wallet_name=wallet_name,
+                                                    wallet_key=wallet_key,
+                                                    timeout=timeout)
+
     # 3. Get primary from each nodes validator-info
     primary_map = {}
-    count = len(aliases)
-    logger.debug("Getting primary node alias from validator-info collected from all %i nodes...", count)
+    count_participating = 0
+    count_not_participating = 0
     tried_to_query= 0
     for alias in aliases:
+        # Only consider a node's declared primary as valid if it is a
+        # participating validator node.
+        if alias not in current_validators:
+            logger.debug("%s is not currently participating as a validator node", alias)
+            count_not_participating += 1
+            continue
+        count_participating += 1
         logger.debug("alias to query primary from validator info: %s", alias)
         validator_info = join(output_dir, "{}-validator-info".format(alias))
         logger.debug("Extract primary from %s", validator_info)
@@ -331,8 +347,8 @@ def detect_primary(genesis_file, did=DEFAULT_CHAOS_DID,
                 primary = node_info['Node_info']['Replicas_status']["{}:0".format(alias)]['Primary']
                 primary = primary.split(":", 1)[0] if primary else None
                 mode = node_info['Node_info']['Mode']
-
-        except FileNotFoundError:
+        except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
+            #logger.exception(e)
             logger.info("Failed to load validator info for alias {}".format(alias))
             logger.info("Setting primary to Unknown for alias {}".format(alias))
             primary = "Unknown"
@@ -358,25 +374,30 @@ def detect_primary(genesis_file, did=DEFAULT_CHAOS_DID,
 
         logger.info("%s's primary is %s - mode: %s", alias, primary, mode)
         tried_to_query += 1
+    logger.debug("Got primary node alias from %d participating validator" \
+                 " nodes.", count_participating)
 
     # 4. Reconcile who is actually the primary. A primary is any node/alias with
     #    an is_primary_to list. However, the node/alias the majority of nodes
     #    reporting it as the primary is the actual primary.
-    primary_map['node_count'] = count
+    primary_map['node_count'] = count_participating
     nodes_with_is_primary_to_list = 0
     current_primary = None
-    for alias in aliases:
+    for alias in current_validators:
         alias_map = primary_map.get(alias, {})
         is_master_to_count = len(alias_map.get('is_primary_to', []))
         if is_master_to_count > 0:
             nodes_with_is_primary_to_list += 1
-        if is_master_to_count > (count / 2):
+        if is_master_to_count > (count_participating / 2):
             alias_map['is_primary'] = True
             primary_map['current_primary'] = alias
     primary_map['reported_primaries'] = nodes_with_is_primary_to_list 
 
-    logger.debug("count: %i tried_to_query: %s len-aliases: %s", count, tried_to_query, len(aliases))
-    if tried_to_query < int(count):
+    logger.debug("count_participating: %i count_not_participating: %i " \
+                 "tried_to_query: %s len-aliases: %s",
+                 count_participating, count_not_participating, tried_to_query,
+                 len(aliases))
+    if tried_to_query < int(count_participating):
         return False
 
     with open(join(output_dir, "primaries"), "w") as f:

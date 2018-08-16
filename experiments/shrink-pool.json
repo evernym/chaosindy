@@ -1,11 +1,11 @@
 {
     "version": "1.0.0",
-    "title": "Replica Selection",
-    "description": "Reach steady state (can write a nym), discover which node is the master (:0). Excluding the primary, demote enough nodes to cause f to be reduced by 1. Finally, ensure the cluster is still in consensus (can write a nym).",
+    "title": "Shrink Pool",
+    "description": "Reach steady state (can write a nym), calculate how many nodes to demote (demote_count) based on the chaos_f_value parameter. Demote demote_count nodes. Include the master in the node(s) being demoted everytime to force a view change. Wait for a view change; checking once every 60 seconds up to 20 times (20 minutes). Assert that the f_value has been reduced to the desired value and the demoted nodes are no longer in the new primary's list of connected validator nodes. Assertions in the 'method' of the experiment can be found in the journal.json. It will not cause the experiment to pass or fail from the context of chaostoolkit, but could be used to pass/fail an experiment in any context with access to the journal.json output. Lastly, ensure the cluster is still in consensus (can write a nym). The rollback segment (pass or fail) will restore the pool to it's original f_value.",
     "tags": [
         "service",
         "indy-node",
-        "demote"
+        "f_value"
     ],
     "configuration": {
         "seed": {
@@ -20,11 +20,23 @@
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
         },
-        "ping_timeout": {
+        "set_services_timeout": {
             "type": "env",
-            "key": "CHAOS_PING_TIMEOUT"
+            "key": "CHAOS_SET_SERVICES_TIMEOUT"
         },
-       "cleanup": {
+        "pause_after": {
+            "type": "env",
+            "key": "CHAOS_PAUSE_AFTER"
+        },
+        "f_value": {
+            "type": "env",
+            "key": "CHAOS_F_VALUE"
+        },
+        "selection_strategy": {
+            "type": "env",
+            "key": "CHAOS_SELECTION_STRATEGY"
+        },
+        "cleanup": {
             "type": "env",
             "key": "CHAOS_CLEANUP"
         }
@@ -43,9 +55,9 @@
                     "arguments": {
                         "seed": "${seed}",
                         "genesis_file": "${genesis_file}",
-                        "pool_name": "rd_pool1",
-                        "my_wallet_name": "rd_my_wallet1",
-                        "their_wallet_name": "rd_their_wallet1",
+                        "pool_name": "fvalue_pool1",
+                        "my_wallet_name": "fvalue_my_wallet1",
+                        "their_wallet_name": "fvalue_their_wallet1",
                         "timeout": "${write_nym_timeout}"
                     }
                 }
@@ -55,14 +67,44 @@
     "method": [
         {
             "type": "action",
-            "name": "reduce-f-by-one",
+            "name": "decrease-f-to",
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "reduce_f_by_one",
+                "func": "decrease_f_to",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
-                    "selection_strategy": 2
+                    "f_value": "${f_value}",
+                    "selection_strategy": "${selection_strategy}",
+                    "pause_after": "${pause_after}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "force-a-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "stop_primary",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "stop_strategy": 1
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-stopped-primary-after-view-change",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "start_stopped_primary_after_view_change",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "max_checks_for_primary": 20,
+                    "sleep_between_checks": 10,
+                    "start_backup_primaries": false
                 }
             }
         }
@@ -70,11 +112,25 @@
     "rollbacks": [
         {
             "type": "action",
-            "name": "promote-demoted-nodes",
+            "name": "revert-f",
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "promote_demoted_nodes",
+                "func": "revert_f",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "timeout": "${set_services_timeout}",
+                    "pause_after": "${pause_after}"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "start-stopped-primary",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "start_stopped_primary",
                 "arguments": {
                     "genesis_file": "${genesis_file}"
                 }

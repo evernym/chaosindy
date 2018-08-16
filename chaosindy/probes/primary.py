@@ -3,7 +3,7 @@ from chaosindy.execute.execute import FabricExecutor
 from chaosindy.common import *
 from chaosindy.probes.node import node_ports_are_reachable
 from chaosindy.probes.validator_info import detect_mode
-from chaosindy.actions.primary import get_primary
+from chaosindy.actions.node import get_primary
 from logzero import logger
 from time import sleep
 

@@ -54,7 +54,7 @@
             "name": "stop-primary",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.primary",
+                "module": "chaosindy.actions.node",
                 "func": "stop_primary",
                 "arguments": {
                     "genesis_file": "${genesis_file}"
@@ -66,7 +66,7 @@
             "name": " start-stopped-primary-after-view-change",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.primary",
+                "module": "chaosindy.actions.node",
                 "func": "start_stopped_primary_after_view_change",
                 "arguments": {
                     "genesis_file": "${genesis_file}"
@@ -81,7 +81,7 @@
             "name": "start-stopped-primary",
             "provider": {
                 "type": "python",
-                "module": "chaosindy.actions.primary",
+                "module": "chaosindy.actions.node",
                 "func": "start_stopped_primary",
                 "arguments": {
                     "genesis_file": "${genesis_file}"
