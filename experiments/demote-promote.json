@@ -1,0 +1,124 @@
+{
+    "version": "1.0.0",
+    "title": "Demote Replica",
+    "description": "Reach steady state (can write a nym), discover which node is the master (:0), which nodes are replicas (:1, :2, ..., :N) (a.k.a. backup primaries), and which nodes are neither master nor replicas (all other nodes). Demote and promote one or more nodes based on selection criteria (forward, backward, random) and node type (master, backup replica, other, or all). If master is included, wait for a view change, checking once every 60 seconds up to 20 times (20 minutes) before ending the experiment's method. Lastly, ensure the cluster is still in consensus (can write a nym).",
+    "tags": [
+        "validator",
+        "demote"
+    ],
+    "configuration": {
+        "seed": {
+            "type": "env",
+            "key": "CHAOS_SEED"
+        },
+        "genesis_file": {
+            "type": "env",
+            "key": "CHAOS_GENESIS_FILE"
+        },
+        "write_nym_timeout": {
+            "type": "env",
+            "key": "CHAOS_WRITE_NYM_TIMEOUT"
+        },
+        "number_of_nodes": {
+            "type": "env",
+            "key": "CHAOS_DEMOTE_NODE_COUNT"
+        },
+        "selection_strategy": {
+            "type": "env",
+            "key": "CHAOS_SELECTION_STRATEGY"
+        },
+        "include_primary": {
+            "type": "env",
+            "key": "CHAOS_INCLUDE_PRIMARY"
+        },
+        "include_backup_primaries": {
+            "type": "env",
+            "key": "CHAOS_INCLUDE_BACKUP_PRIMARIES"
+        },
+        "include_other_nodes": {
+            "type": "env",
+            "key": "CHAOS_INCLUDE_OTHER_NODES"
+        },
+        "set_services_timeout": {
+            "type": "env",
+            "key": "CHAOS_SET_SERVICES_TIMEOUT"
+        },
+        "cleanup": {
+            "type": "env",
+            "key": "CHAOS_CLEANUP"
+        }
+    },
+    "steady-state-hypothesis": {
+        "title": "Can write a nym",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "can-write-nym",
+                "tolerance": true,
+                "provider": {
+                    "type": "python",
+                    "module": "chaosindy.probes.write_nym",
+                    "func": "write_nym",
+                    "arguments": {
+                        "seed": "${seed}",
+                        "genesis_file": "${genesis_file}",
+                        "pool_name": "dp_pool1",
+                        "my_wallet_name": "rd_my_wallet1",
+                        "their_wallet_name": "dp_their_wallet1",
+                        "timeout": "${write_nym_timeout}"
+                    }
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "demote-n-validator-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "stop_n_nodes",
+                "arguments": {
+                    "genesis_file": "${genesis_file}",
+                    "number_of_nodes": "${number_of_nodes}",
+                    "selection_strategy": "${selection_strategy}",
+                    "include_primary": "${include_primary}",
+                    "include_backup_primaries": "${include_backup_primaries}",
+                    "include_other_nodes": "${include_other_nodes}",
+                    "stop_node_timeout": "${set_services_timeout}",
+                    "stop_strategy": 3
+                }
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "promote-demoted-validator-nodes",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.actions.node",
+                "func": "start_stopped_nodes",
+                "arguments": {
+                    "genesis_file": "${genesis_file}"
+                }
+            },
+            "pauses": {
+                "after": 60
+            }
+        },
+        {
+            "type": "action",
+            "name": "cleanup",
+            "provider": {
+                "type": "python",
+                "module": "chaosindy.common",
+                "func": "remove_chaos_temp_dir",
+                "arguments": {
+                    "cleanup": "${cleanup}"
+                }
+            }
+        }
+    ]
+}

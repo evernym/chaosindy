@@ -61,21 +61,21 @@ def demoted_backup_primaries_are_excluded(genesis_file,
             validator_info = json.load(vif)
     reachable_nodes = validator_info['Pool_info']['Reachable_nodes']
 
-    stopped_replicas_file = "{}/stopped_replicas".format(output_dir)
-    stopped_replicas_dict = {}
+    stopped_nodes_file = "{}/stopped_nodes".format(output_dir)
+    stopped_nodes_dict = {}
     try:
-        with open(stopped_replicas_file, 'r') as stopped_replicas:
-            stopped_replicas_dict = json.load(stopped_replicas)
+        with open(stopped_nodes_file, 'r') as stopped_nodes:
+            stopped_nodes_dict = json.load(stopped_nodes)
     except FileNotFoundError as e:
-        message = "%s does not exist. Must call stop_n_backup_primaries " \
+        message = "%s does not exist. Must call stop_n_nodes " \
                   " before calling demoted_backup_primaries_are_excluded"
-        logger.error(message, stopped_replicas_file)
+        logger.error(message, stopped_nodes_file)
         logger.exception(e)
         return False
 
-    if 'stopped_backup_primaries' in stopped_replicas_dict:
+    if 'stopped_backup_primaries' in stopped_nodes_dict:
         should_not_be_in_reachable_list = []
-        for alias in stopped_replicas_dict['stopped_backup_primaries'].keys():
+        for alias in stopped_nodes_dict['stopped_backup_primaries'].keys():
             if alias in reachable_nodes:
                 should_no_be_in_reachable_list.append(alias)
         if should_not_be_in_reachable_list:

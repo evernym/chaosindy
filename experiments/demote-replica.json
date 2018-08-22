@@ -67,11 +67,14 @@
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "stop_n_backup_primaries",
+                "func": "stop_n_nodes",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
                     "number_of_nodes": "${number_of_nodes}",
                     "selection_strategy": "${selection_strategy}",
+                    "include_primary": false,
+                    "include_backup_primaries": true,
+                    "include_other_nodes": false,
                     "stop_strategy": 3
                 }
             }

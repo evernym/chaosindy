@@ -141,4 +141,4 @@ for row in rows:
 print(pt)
 
 # Cleanup
-#rmtree(temp_dir)
+rmtree(temp_dir)

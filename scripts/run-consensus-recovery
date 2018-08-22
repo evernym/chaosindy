@@ -107,10 +107,23 @@ case $key in
     shift # past value
     ;;
     -l|--cleanup)
-    export CHAOS_CLEANUP="Y"
+    value="$2"
+    case $value in
+        [yY][eE][sS]|[yY]|[1])
+        export CHAOS_CLEANUP='Yes'
+        ;;
+        [nN][oO]|[nN]|[0])
+        export CHAOS_CLEANUP=''
+        ;;
+        *)
+        echo "Invalid cleanup value ${value}"
+        usage
+        ;;
+    esac
     shift # past argument
     shift # past value
     ;;
+
     -n|--validator-nodes)
     export CHAOS_VALIDATOR_NODES='$2'
     shift # past argument

@@ -5,7 +5,14 @@
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
 export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_SET_SERVICES_TIMEOUT=60
+export CHAOS_PAUSE_AFTER=60
 export CHAOS_WRITE_NYM_TIMEOUT=60
+export CHAOS_DEMOTE_NODE_COUNT=1
+export CHAOS_SELECTION_STRATEGY=2
+export CHAOS_INCLUDE_PRIMARY=Y
+export CHAOS_INCLUDE_BACKUP_PRIMARIES=Y
+export CHAOS_INCLUDE_OTHER_NODES=Y
 export CHAOS_CLEANUP=Y
 export PYTHONPATH=/home/ubuntu/chaosindy
 number_of_executions=1
@@ -18,6 +25,10 @@ usage(){
     echo "       Remove temporary files/directories created by the experiment?"
     echo "       Default: Yes"
     echo "       Valid Inputs (case insensitive): yes, y, 1, no, n, 0"
+    echo "   -d|--demote-node-count"
+    echo "       How many nodes to demote and promote?"
+    echo "       Default: ${CHAOS_DEMOTE_PROMOTE_COUNT}"
+    echo "       Valid Input: Any positive number >= 1"
     echo "   -e|--execution-count"
     echo "       How many times to run the experiment."
     echo "       Default: ${number_of_executions}"
@@ -32,16 +43,44 @@ usage(){
     echo "         the complete list from the genesis file. TODO: derive default"
     echo "         from genesis file."
     echo "       Default: '${CHAOS_VALIDATOR_NODES}'"
+    echo "   -o|--selection-order"
+    echo "       Order in which replicas are selected for demotion."
+    echo "       Valid Input: 1 (FORWARD), 2 (REVERSE), 3 (RANDOM)"
+    echo "       Default: '${CHAOS_SELECTION_STRATEGY}'"
+    echo "   -p|--pause-after"
+    echo "       How long to let the system reach a steady state (in seconds)"
+    echo "       after demoting nodes."
+    echo "       Default: ${CHAOS_PAUSE_AFTER}"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   -s|--set-services-timeout"
+    echo "       How long to wait (seconds) before timing out while promoting"
+    echo "       and demoting a node. A node's 'services' are changed between"
+    echo "       'VALIDATOR' and '' \(blank\) during demotion/promotion."
+    echo "       Default: ${CHAOS_SET_SERVICES_TIMEOUT}"
+    echo "       Valid Input: Any positive number >= 1"
     echo "   -t|--write-nym-timeout"
     echo "       How long to wait (seconds) before timing out while writing a NYM"
     echo "         transaction."
     echo "       Default: ${CHAOS_WRITE_NYM_TIMEOUT}"
     echo "       Valid Input: Any positive number >= 1"
-    echo "   -s|--seed"
+    echo "   --seed"
     echo "       Seed to use to create DID/Verkey pair used to get validator info"
     echo "         via indy-cli. Must be a Trustee or Steward seed."
     echo "       Default: ${CHAOS_SEED}"
     echo "       Valid Input: A 32 byte string. See default above for an example."
+    echo "   --include-primary"
+    echo "       Include primary when selecting nodes to demote?"
+    echo "       Default: ${CHAOS_INCLUDE_PRIMARY}"
+    echo "       Valid Inputs (case insensitive): yes, y, 1, no, n, 0"
+    echo "   --include-backup-primaries"
+    echo "       Include backup primaries when selecting nodes to demote?"
+    echo "       Default: ${CHAOS_INCLUDE_BACKUP_PRIMARIES}"
+    echo "       Valid Inputs (case insensitive): yes, y, 1, no, n, 0"
+    echo "   --include-other-nodes"
+    echo "       Include all non-primary, non-backup-primary nodes when"
+    echo "       selecting nodes to demote?"
+    echo "       Default: ${CHAOS_INCLUDE_OTHER_NODES}"
+    echo "       Valid Inputs (case insensitive): yes, y, 1, no, n, 0"
     exit 1
 }
 
@@ -88,6 +127,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -d|--demote-node-count)
+    export CHAOS_DEMOTE_NODE_COUNT=$2
+    shift # past argument
+    shift # past value
+    ;;
     -e|--execution-count)
     number_of_executions=$2
     shift # past argument
@@ -102,8 +146,18 @@ case $key in
     usage
     shift # past argument
     ;;
+    -o|--selection-order)
+    export CHAOS_SELECTION_STRATEGY=$2
+    shift # past argument
+    shift # past value
+    ;;
     -n|--validator-nodes)
     export CHAOS_VALIDATOR_NODES='$2'
+    shift # past argument
+    shift # past value
+    ;;
+    -s|--set-services-timeout)
+    export CHAOS_SET_SERVICES_TIMEOUT=$2
     shift # past argument
     shift # past value
     ;;
@@ -112,8 +166,59 @@ case $key in
     shift # past argument
     shift # past value
     ;;
-    -s|--seed)
+    --seed)
     export CHAOS_SEED="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    --include-primary)
+    value="$2"
+    case $value in
+        [yY][eE][sS]|[yY]|[1])
+        export CHAOS_INCLUDE_PRIMARY='Yes'
+        ;;
+        [nN][oO]|[nN]|[0])
+        export CHAOS_INCLUDE_PRIMARY=''
+        ;;
+        *)
+        echo "Invalid include-primary value ${value}"
+        usage
+        ;;
+    esac
+    shift # past argument
+    shift # past value
+    ;;
+    --include-backup-primaries)
+    value="$2"
+    case $value in
+        [yY][eE][sS]|[yY]|[1])
+        export CHAOS_INCLUDE_BACKUP_PRIMARIES='Yes'
+        ;;
+        [nN][oO]|[nN]|[0])
+        export CHAOS_INCLUDE_BACKUP_PRIMARIES=''
+        ;;
+        *)
+        echo "Invalid include-backup-primaries value ${value}"
+        usage
+        ;;
+    esac
+    shift # past argument
+    shift # past value
+    ;;
+    --include-other-nodes)
+    value="$2"
+    case $value in
+        [yY][eE][sS]|[yY]|[1])
+        export CHAOS_INCLUDE_OTHER_NODES='Yes'
+        ;;
+        [nN][oO]|[nN]|[0])
+        export CHAOS_INCLUDE_OTHER_NODES=''
+        ;;
+        *)
+        echo "Invalid include-other value ${value}"
+        usage
+        ;;
+    esac
     shift # past argument
     shift # past value
     ;;
@@ -128,8 +233,14 @@ set -- "${POSITIONAL[@]}" # restore positional parameters. May be useful for cus
 echo CHAOS_SEED=${CHAOS_SEED}
 echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
 echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_SET_SERVICES_TIMEOUT=${CHAOS_SET_SERVICES_TIMEOUT}
 echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
+echo CHAOS_DEMOTE_NODE_COUNT=${CHAOS_DEMOTE_NODE_COUNT}
+echo CHAOS_SELECTION_STRATEGY=${CHAOS_SELECTION_STRATEGY}
 echo CHAOS_CLEANUP=${CHAOS_CLEANUP}
+echo CHAOS_INCLUDE_PRIMARY=${CHAOS_INCLUDE_PRIMARY}
+echo CHAOS_INCLUDE_BACKUP_PRIMARIES=${CHAOS_INCLUDE_BACKUP_PRIMARIES}
+echo CHAOS_INCLUDE_OTHER_NODES=${CHAOS_INCLUDE_OTHER_NODES}
 echo PYTHONPATH=${PYTHONPATH}
 echo number_of_executions=${number_of_executions}
 
@@ -138,7 +249,7 @@ for i in $(seq 1 ${number_of_executions})
 do
   echo "********************** Experiment Iteration $i of $number_of_executions ********************"
   exec 5>&1
-  result=$(chaos --verbose run ${DIR}/../experiments/force-view-change.json 2>&1 | tee >(cat - >&5))
+  result=$(chaos --verbose run ${DIR}/../experiments/demote-promote.json 2>&1 | tee >(cat - >&5))
 
   echo "Check for failed experiment..."
   echo "Begin printing captured results..."

@@ -1,16 +1,19 @@
 import json
 from indy import ledger, did, wallet, pool
-from indy.error import IndyError
+from indy.error import IndyError, ErrorCode
 from os.path import expanduser, join
 from chaosindy.common import *
-
 from logzero import logger
+from datetime import datetime
 
 
-# TODO: clean up (beyond closing the handle) my_wallet and their_wallet?
+# NOTE: Workaround: Until https://jira.hyperledger.org/browse/IS-903 is
+#       completed, create, populate, use and then delete a new wallet each time
+#       write_nym_and_check is called.
 async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
                               my_wallet_key=None, their_wallet_name=None,
-                              their_wallet_key=None, genesis_file=None):
+                              their_wallet_key=None, genesis_file=None,
+                              cleanup=True):
     if seed is None:
         seed = DEFAULT_CHAOS_SEED
 
@@ -20,11 +23,18 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     if my_wallet_name is None:
         my_wallet_name = DEFAULT_CHAOS_MY_WALLET_NAME
 
+    now = datetime.now()
+    my_wallet_name = "{}-{}".format(my_wallet_name,
+                                    now.strftime("%Y%m%dT%H%M%S"))
+
     if my_wallet_key is None:
         my_wallet_key = DEFAULT_CHAOS_WALLET_KEY
 
     if their_wallet_name is None:
         their_wallet_name = DEFAULT_CHAOS_THEIR_WALLET_NAME
+
+    their_wallet_name = "{}-{}".format(my_wallet_name,
+                                       now.strftime("%Y%m%dT%H%M%S"))
 
     if their_wallet_key is None:
         their_wallet_key = DEFAULT_CHAOS_WALLET_KEY
@@ -87,8 +97,17 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
 
     logger.debug('# 6. Create Their DID from Trustee1 seed')
-    (their_did, their_verkey) = await did.create_and_store_my_did(their_wallet_handle,
-                                                                  json.dumps({"seed": seed}))
+    try:
+        (their_did, their_verkey) = await did.create_and_store_my_did(
+            their_wallet_handle, json.dumps({"seed": seed}))
+    except IndyError as e:
+        if e.error_code == ErrorCode.DidAlreadyExistsError:
+            # TODO: Generate (their_did, their_verkey) tuple from seed (like DidUtils::create_my_did)
+            logger.info("Handled DidAlreadyExistsError exception...")
+            pass
+        else:
+            logger.exception(e)
+            raise e
 
     await did.store_their_did(my_wallet_handle, json.dumps({'did': their_did, 'verkey': their_verkey}))
 
@@ -107,42 +126,40 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
     # 10. Close wallets and pool
     await wallet.close_wallet(their_wallet_handle)
     await wallet.close_wallet(my_wallet_handle)
-
-    # Not sure why, but after upgradeing to indy-node 1.6~X, delete_wallet
-    # seems to fail with a WalletNotFound exception.
-    try:
-        await wallet.delete_wallet(their_wallet_config,
-                                   their_wallet_credentials)
-    except Exception as e:
-        logger.info("Best-effort deletion of wallet %s failed.",
-                    their_wallet_name) 
-        #logger.exception(e)
-        pass
-
-    # Not sure why, but after upgradeing to indy-node 1.6~X, delete_wallet
-    # seems to fail with a WalletNotFound exception.
-    try:
-        await wallet.delete_wallet(my_wallet_config, my_wallet_credentials)
-    except Exception as e:
-        logger.info("Best-effort deletion of wallet %s failed.", my_wallet_name)
-        #logger.exception(e)
-        pass
-
     await pool.close_pool_ledger(pool_handle)
 
-    # Not sure why, but after upgradeing to indy-node 1.6~X,
-    # delete_pool_ledger_config seems to fail with a CommonIOError exception.
-    try:
-        await pool.delete_pool_ledger_config(pool_name)
-    except Exception as e:
-        logger.info("Best-effort deletion of %s pool ledger config failed.",
-                    pool_name) 
-        #logger.exception(e)
-        pass
+    if cleanup:
+        try:
+            await wallet.delete_wallet(their_wallet_config,
+                                       their_wallet_credentials)
+        except Exception as e:
+            logger.info("Best-effort deletion of wallet %s failed.",
+                        their_wallet_name) 
+            #logger.exception(e)
+            pass
+
+        try:
+            await wallet.delete_wallet(my_wallet_config, my_wallet_credentials)
+        except Exception as e:
+            logger.info("Best-effort deletion of wallet %s failed.", my_wallet_name)
+            #logger.exception(e)
+            pass
 
 
+        try:
+            await pool.delete_pool_ledger_config(pool_name)
+        except Exception as e:
+            logger.info("Best-effort deletion of %s pool ledger config failed.",
+                        pool_name) 
+            #logger.exception(e)
+            pass
+
+
+# NOTE: Workaround: Until https://jira.hyperledger.org/browse/IS-903 is
+#       completed, create, populate, use and then delete a new wallet each time
+#       write_nym_and_check is called.
 async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
-                              wallet_name=None, wallet_key=None):
+                              wallet_name=None, wallet_key=None, cleanup=True):
     """
     Not to be confused with the validator-info script or the indy-cli
     `ledger get-validator-info`.
@@ -164,6 +181,10 @@ async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
     if wallet_name is None:
         wallet_name = DEFAULT_CHAOS_WALLET_NAME
 
+    now = datetime.now()
+    wallet_name = "{}-{}".format(wallet_name,
+                                 now.strftime("%Y%m%dT%H%M%S"))
+
     if wallet_key is None:
         wallet_key = DEFAULT_CHAOS_WALLET_KEY
 
@@ -176,6 +197,7 @@ async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
     except IndyError as e:
         logger.info("Handled IndyError")
         logger.exception(e)
+        pass
 
     logger.debug('# 1. Create ledger config from genesis txn file')
     pool_config = json.dumps({"genesis_txn": str(genesis_file)})
@@ -273,26 +295,22 @@ async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
     with open(join(output_dir, 'validator-state'), 'w') as json_file:
         json.dump(validators, json_file, sort_keys=True, indent=4)
 
-    logger.debug('# 5. Close wallets and pool')
+    logger.debug('# 5. Close wallet and pool')
     await wallet.close_wallet(wallet_handle)
-
-    # Not sure why, but aftering upgradeing to indy-node 1.6~X, delete_wallet
-    # seems to fail with a WalletNotFound exception.
-    try:
-        await wallet.delete_wallet(wallet_config, wallet_credentials)
-    except Exception as e:
-        logger.info("Best-effort deletion of wallet %s failed.", wallet_name) 
-        #logger.exception(e)
-        pass
-
     await pool.close_pool_ledger(pool_handle)
 
-    # Not sure why, but after upgradeing to indy-node 1.6~X,
-    # delete_pool_ledger_config seems to fail with a CommonIOError exception.
-    try:
-        await pool.delete_pool_ledger_config(pool_name)
-    except Exception as e:
-        logger.info("Best-effort deletion of %s pool ledger config failed.",
-                    pool_name) 
-        #logger.exception(e)
-        pass
+    if cleanup:
+        try:
+            await wallet.delete_wallet(wallet_config, wallet_credentials)
+        except Exception as e:
+            logger.info("Best-effort deletion of wallet %s failed.", wallet_name) 
+            #logger.exception(e)
+            pass
+
+        try:
+            await pool.delete_pool_ledger_config(pool_name)
+        except Exception as e:
+            logger.info("Best-effort deletion of %s pool ledger config failed.",
+                        pool_name) 
+            #logger.exception(e)
+            pass

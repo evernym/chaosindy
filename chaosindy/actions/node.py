@@ -54,7 +54,8 @@ def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
     return True
 
 
-def apply_iptables_rule_by_node_name(node, rule, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def apply_iptables_rule_by_node_name(node, rule,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("applying iptables rule >%s< on node: %s", rule, node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
@@ -73,7 +74,8 @@ def apply_iptables_rule_by_node_name(node, rule, ssh_config_file=DEFAULT_CHAOS_S
     return True
 
 
-def block_port_by_node_name(node, port, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def block_port_by_node_name(node, port,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("block node %s on port %s", node, port)
     ## 1. Block a port or port range using a firewall
     if ":" in port:
@@ -83,7 +85,8 @@ def block_port_by_node_name(node, port, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG
     return apply_iptables_rule_by_node_name(node, rule, ssh_config_file)
 
 
-def unblock_port_by_node_name(node, port, best_effort=False, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def unblock_port_by_node_name(node, port, best_effort=False,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("unblock node %s on port %s", node, port)
     do_not_fail = ""
     if best_effort:
@@ -233,7 +236,8 @@ def all_nodes_up(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     return start_nodes(aliases, ssh_config_file)
 
 
-def unblock_node_port_all_nodes(genesis_file, best_effort=True, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def unblock_node_port_all_nodes(genesis_file, best_effort=True,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("genesis_file: %s", genesis_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -272,7 +276,8 @@ def get_random_nodes(genesis_file, count):
     return selected
 
 
-def block_node_port_random(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def block_node_port_random(genesis_file, count,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     selected = get_random_nodes(genesis_file, count)
@@ -407,7 +412,8 @@ def unblock_node_port_random(genesis_file, transactions=None,
     return True
 
 
-def kill_random_nodes(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def kill_random_nodes(genesis_file, count,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     selected = get_random_nodes(genesis_file, count)
     tried_to_kill = 0
     are_dead = 0
@@ -563,7 +569,8 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
     return True
 
 
-def ensure_nodes_up(genesis_file, count, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def ensure_nodes_up(genesis_file, count,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     logger.debug("genesis_file: %s -- count: %s -- ssh_config_file: %s", genesis_file, count, ssh_config_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -705,11 +712,13 @@ def set_services_by_node_name(genesis_file, alias,
     NOTE: Possible pure-python solution: https://github.com/hyperledger/indy-plenum/blob/62c8f47c20a1d204f2e90bb85f84cbf02c2b0b48/plenum/test/pool_transactions/helper.py#L413-L430
     """
     logger.debug("Setting %s's services to >%s<", alias, services)
-    logger.debug("Get {}'s DID from genesis_file {}".format(alias, genesis_file))
+    logger.debug("Get %s's DID from genesis_file %s", alias, genesis_file)
     node_genesis_json = get_info_by_node_name(genesis_file, alias,
                                               path="txn.data")
+    timeout = int(timeout)
     alias_did = node_genesis_json['dest']
-    logger.debug("{}'s did is {}".format(alias, alias_did))
+    logger.debug("%s's did is %s", alias, alias_did)
+    logger.debug("timeout set to %d", timeout)
     return set_node_services_from_cli(genesis_file, alias, alias_did=alias_did,
                                       services=services, did=did, seed=seed,
                                       wallet_name=wallet_name,
@@ -739,7 +748,7 @@ def demote_by_node_name(genesis_file, alias,
 def restart_node(genesis_file, alias,
                  timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
                  stop_strategy=StopStrategy.SERVICE.value,
-                 ssh_config_file="~/.ssh/config"):
+                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Restart a node
 
@@ -813,7 +822,7 @@ def promote_by_node_name(genesis_file, alias,
 
 def stop_by_strategy(genesis_file, alias, stop_strategy,
                      timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                     ssh_config_file="~/.ssh/config"):
+                     ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Assuptions:
         - A <alias>-validator-info file contains validator info for the given
@@ -865,7 +874,7 @@ def stop_by_strategy(genesis_file, alias, stop_strategy,
 
 def start_by_strategy(genesis_file, alias, details,
                       timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                      ssh_config_file="~/.ssh/config"):
+                      ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     succeeded = False
     operation = "start/unblock/promote"
     stop_strategy = details.get('stop_strategy', None)
@@ -878,8 +887,8 @@ def start_by_strategy(genesis_file, alias, details,
         node_port = details.get('node_port', None)
         if not (client_port or node_port):
             message ="""Missing client_port and/or node_port element in
-                        stopped_replicas state file {} for {}"""
-            logger.error(message.format(stopped_replicas_file, alias))
+                        stopped_nodes_file state file {} for {}"""
+            logger.error(message.format(stopped_nodes_file, alias))
             return False
         client_port_unblocked = unblock_port_by_node_name(alias,
             client_port, ssh_config_file=ssh_config_file)
@@ -902,7 +911,7 @@ def start_by_strategy(genesis_file, alias, details,
     return True
 
 
-def get_primary(genesis_file, ssh_config_file="~/.ssh/config",
+def get_primary(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE,
                 compile_stats=True):
     """
     Return the alias of the primary from the 'primaries' state file.
@@ -934,7 +943,7 @@ def get_primary(genesis_file, ssh_config_file="~/.ssh/config",
 
 
 def stop_primary(genesis_file, stop_strategy=StopStrategy.SERVICE.value,
-                 ssh_config_file="~/.ssh/config"):
+                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Detect and stop the node playing the role of 'primary'
     Store the name/alias of the primary in a 'stopped_primary' file (JSON doc)
@@ -977,11 +986,37 @@ def stop_primary(genesis_file, stop_strategy=StopStrategy.SERVICE.value,
     return False
 
 
+def wait_for_view_change(genesis_file,
+                         previous_primary=None,
+                         max_checks_for_primary=6,
+                         sleep_between_checks=10,
+                         ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    """
+    Wait until view change is complete. When the primary is not the
+    stopped_primary a viewchange has progressed far enough to achive consensus.
+    """
+    tries = 0
+    while tries < max_checks_for_primary:
+        current_primary = get_primary(genesis_file,
+                                      ssh_config_file=ssh_config_file,
+                                      compile_stats=True)
+        logger.debug("Check %d of %d if view change is complete", tries,
+                     max_checks_for_primary)
+        logger.debug("Former primary: %s", previous_primary)
+        logger.debug("Current primary: %s", current_primary)
+        if current_primary and previous_primary != current_primary:
+            logger.debug("View change detected!")
+            break;
+        else:
+            logger.debug("View change not yet complete. Sleeping for {} seconds...".format(sleep_between_checks))
+            sleep(sleep_between_checks)
+            tries += 1
+    return tries
+
+
 def start_stopped_primary_after_view_change(genesis_file,
-                                            max_checks_for_primary=6,
-                                            sleep_between_checks=10,
-                                            start_backup_primaries=True,
-                                            ssh_config_file="~/.ssh/config"):
+    max_checks_for_primary=6, sleep_between_checks=10,
+    start_backup_primaries=True, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Start the node stopped by a call to stop_primary. When the primary is
     stopped, the pool will perform a viewchange. This function will not start
@@ -1000,7 +1035,7 @@ def start_stopped_primary_after_view_change(genesis_file,
         contains a JSON object produced by a call to stop_primary or
         stop_f_backup_primaries_before_primary, which has a stopped_primary
         attribute.
-      - If a "stopped_backup_primaries" element exists in the JSON, and the
+      - If a "stopped_nodes" element exists in the JSON, and the
         start_backup_primaries kwarg is True, the stopped backup primaries
         should be started.
 
@@ -1029,35 +1064,22 @@ def start_stopped_primary_after_view_change(genesis_file,
         return False
     stopped_primary = stopped_primary_dict.get('stopped_primary', None)
     if stopped_primary:
-        # Wait until view change is complete. When the primary is not the
-        # stopped_primary a viewchange has progressed far enough to achive
-        # consensus.
-        tries = 0
-        while tries < max_checks_for_primary:
-            current_primary = get_primary(genesis_file,
-                                          ssh_config_file=ssh_config_file,
-                                          compile_stats=True)
-            logger.debug("Check %d of %d if view change is complete", tries,
-                         max_checks_for_primary)
-            logger.debug("Former primary: %s", stopped_primary)
-            logger.debug("Current primary: %s", current_primary)
-            if current_primary and stopped_primary != current_primary:
-                logger.debug("View change detected!")
-                break;
-            else:
-                logger.debug("View change not yet complete. Sleeping for {} seconds...".format(sleep_between_checks))
-                sleep(sleep_between_checks)
-                tries += 1
+        tries = wait_for_view_change(genesis_file=genesis_file,
+            previous_primary=stopped_primary,
+            max_checks_for_primary=max_checks_for_primary,
+            sleep_between_checks=sleep_between_checks,
+            ssh_config_file=ssh_config_file)
+
         # Only start stopped primary and backup primaries if a viewchange
         # completed.
         if tries < max_checks_for_primary:
             # Start backup primaries?
-            stopped_backup_primaries = stopped_primary_dict.get(
-                'stopped_backup_primaries', None)
-            if start_backup_primaries and stopped_backup_primaries:
-                for backup_primary in stopped_backup_primaries:
+            stopped_nodes = stopped_primary_dict.get(
+                'stopped_nodes', None)
+            if start_backup_primaries and stopped_nodes:
+                for backup_primary in stopped_nodes:
                     started = start_by_strategy(genesis_file, backup_primary,
-                        stopped_backup_primaries[backup_primary],
+                        stopped_nodes[backup_primary],
                         ssh_config_file=ssh_config_file)
                     if not started:
                         message = """Failed to start backup primary node %s"""
@@ -1072,7 +1094,7 @@ def start_stopped_primary_after_view_change(genesis_file,
     return True
 
 def start_stopped_primary(genesis_file, start_backup_primaries=True,
-                          ssh_config_file="~/.ssh/config"):
+                          ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Start the node stopped by a call to stop_primary. When the primary is
     stopped, the pool will perform a viewchange. This function starts the
@@ -1102,14 +1124,14 @@ def start_stopped_primary(genesis_file, start_backup_primaries=True,
         return False
     primary = stopped_primary_dict.get('stopped_primary', None)
     if primary:
-        stopped_backup_primaries = stopped_primary_dict.get(
-            'stopped_backup_primaries', None)
-        if stopped_backup_primaries:
+        stopped_nodes = stopped_primary_dict.get(
+            'stopped_nodes', None)
+        if stopped_nodes:
             message = """Detected stopped backup primaries %s. Starting backup
                          primaries before starting stopped primary..."""
-            for backup_primary in stopped_backup_primaries:
+            for backup_primary in stopped_nodes:
                 started = start_by_strategy(genesis_file, backup_primary,
-                    stopped_backup_primaries[backup_primary],
+                    stopped_nodes[backup_primary],
                     ssh_config_file=ssh_config_file)
             if not started:
                 message = """Failed to start backup primary node %s"""
@@ -1123,8 +1145,8 @@ def start_stopped_primary(genesis_file, start_backup_primaries=True,
 
 
 def stop_f_backup_primaries_before_primary(genesis_file, f=None,
-                                           stop_strategy=StopStrategy.SERVICE.value,
-                                           ssh_config_file="~/.ssh/config"):
+    stop_strategy=StopStrategy.SERVICE.value,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Stop exactly a certain number of backup primaries. Defaults to cluster's f
     value or number of replicas, whichever is less.
@@ -1132,7 +1154,7 @@ def stop_f_backup_primaries_before_primary(genesis_file, f=None,
           backup primaries to stop. Options defined by SelectionStrategy in
           chaosindy.common
     TODO: Move to a chaosindy.actions.replica.py?
-    TODO: Change state file from stopped_replicas to stopped_primary? If so,
+    TODO: Change state file from stopped_nodes to stopped_primary? If so,
           must change logic to read the file into a dict (default empty dict),
           add/update the dict, and write it out to disk. Overwriting the file
           will not work. Perhaps the common module can be enhanced to support
@@ -1186,7 +1208,7 @@ def stop_f_backup_primaries_before_primary(genesis_file, f=None,
         primary_data = {
             'stopped_primary': primary,
             'stopped_primary_details': primary_details,
-            'stopped_backup_primaries': backup_primaries,
+            'stopped_nodes': backup_primaries,
             'next_primary': next_primary
         }
         with open("{}/stopped_primary".format(output_dir), 'w') as f:
@@ -1195,14 +1217,19 @@ def stop_f_backup_primaries_before_primary(genesis_file, f=None,
     return False
 
 
-def stop_n_backup_primaries(genesis_file, number_of_nodes=None,
-                            selection_strategy=SelectionStrategy.FORWARD.value,
-                            stop_strategy=StopStrategy.SERVICE.value,
-                            ssh_config_file="~/.ssh/config"):
+def stop_n_nodes(genesis_file, number_of_nodes=None,
+                 selection_strategy=SelectionStrategy.FORWARD.value,
+                 stop_strategy=StopStrategy.SERVICE.value,
+                 include_primary='Yes',
+                 include_backup_primaries='Yes',
+                 include_other_nodes='Yes',
+                 max_checks_for_primary=6,
+                 sleep_between_checks=10,
+                 stop_node_timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Stop a least one or more backup primaries (replicas)
-    TODO: Move to a chaosindy.actions.replica.py?
-    TODO: Change state file from stopped_replicas to stopped_primary? If so,
+    TODO: Change state file from stopped_nodes to stopped_primary? If so,
           must change logic to read the file into a dict (default empty dict),
           add/update the dict, and write it out to disk. Overwriting the file
           will not work. Perhaps the common module can be enhanced to support
@@ -1210,6 +1237,11 @@ def stop_n_backup_primaries(genesis_file, number_of_nodes=None,
 
     Assumptions:
       - A pool of at least 4 nodes
+      - The node list from which to select nodes using the given
+        selection_strategy will be in the following order:
+        - primary
+        - backup primaries
+        - all other nodes in the order they are listed in the genesis file
 
     Arguments:
       genesis_file - path to the pool genesis transaction file
@@ -1222,9 +1254,14 @@ def stop_n_backup_primaries(genesis_file, number_of_nodes=None,
                            SelectionStrategy in chaosindy.common
       stop_strategy - How to "stop" backup primaries. Options defined by
                       StopStrategy in chaosindy.common
+      include_primary - Include the primary when selecting nodes using the
+                        stop_strategy?
+      include_backup_primaries - Include the backup primaries when selecting
+                               nodes using the stop_strategy?
+      include_other_nodes - Include non-primary and non-backup-primary nodes when
+                      selecting nodes using the stop_strategy?
       ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
     """
-
     # Variable substitution in chaostoolkit appears to only support strings.
     # When variables are not strings, they will need to be converted/cast.
     if number_of_nodes:
@@ -1251,77 +1288,146 @@ def stop_n_backup_primaries(genesis_file, number_of_nodes=None,
         logger.error(message.format(stop_strategy))
         return False
 
+    # Assume no "other" (non-primary and non-backup-primaries) nodes, by default
+    genesis_file_aliases = get_aliases(genesis_file)
+    stopped_nodes = {}
+    node_selection = []
+
+    # Are all "other" nodes included? If so, prime the list with a complete list
+    # of aliases from the genesis file.
+    if include_other_nodes:
+        other_nodes = genesis_file_aliases.copy()
+
     # Get replica information from the primary's validator info
     primary = get_primary(genesis_file, compile_stats=True,
                           ssh_config_file=ssh_config_file)
-    if primary:
-        output_dir = get_chaos_temp_dir()
-        with open("{}/{}-validator-info".format(output_dir, primary), 'r') as vif:
-            validator_info = json.load(vif)
-        # Stop up to n-1 backup primaries
-        # Set n if not defined or >= node's reported replica count
-        replica_count = validator_info['Node_info']['Count_of_replicas']
-        if not number_of_nodes or (number_of_nodes >= replica_count):
-            number_of_nodes = (replica_count - 1)
+    if include_primary:
+        message = "Adding the primary ({}) to the node_selection list"
+        logger.debug(message.format(primary))
+        node_selection.append(primary)
 
-        stopped_backup_primaries = {}
-        # Determine the nodes to stop based on the SelectionStrategy
-        nodes_to_stop = list(range(1, replica_count))
-        if selection_strategy == SelectionStrategy.RANDOM.value:
-            nodes_to_stop_random = []
-            # Use a copy of the list of nodes to stop so randomly selected nodes
-            # do not get randomly selected more than once.
-            nodes_to_stop_copy = nodes_to_stop.copy()
-            for i in range(number_of_nodes):
-                random_node = random.choice(nodes_to_stop_copy)
-                nodes_to_stop_random.append(random_node)
-                # Remove the random_node so it doesn't get selected again.
-                nodes_to_stop_copy.remove(random_node)
-            nodes_to_stop = nodes_to_stop_random
-        elif selection_strategy == SelectionStrategy.REVERSE.value:
-            nodes_to_stop = list(reversed(nodes_to_stop))[0:number_of_nodes]
-        elif selection_strategy == SelectionStrategy.FORWARD.value:
-            nodes_to_stop = nodes_to_stop[0:number_of_nodes]
+    if not primary:
+        logger.error("Failed to get primary node alias.")
+        return False
 
-        node_info = validator_info['Node_info']
-        replica_status = node_info['Replicas_status']
-        for i in nodes_to_stop:
-            replica = replica_status["{}:{}".format(primary, i)]['Primary']
-            replica = replica.split(":")[0]
-            details = stop_by_strategy(genesis_file, replica, stop_strategy,
-                ssh_config_file=ssh_config_file)
-            if not details:
-                return False
-            stopped_backup_primaries[replica] = details
+    # Remove the primary from other nodes even if it is not included in
+    # node_selection. The objective is to get other_nodes down to just the
+    # list of non-primary and non-backup-primary nodes.
+    if include_other_nodes:
+        other_nodes.remove(primary)
 
-        primary_data = {
-            'stopped_backup_primaries': stopped_backup_primaries
-        }
-        with open("{}/stopped_replicas".format(output_dir), 'w') as f:
-            f.write(json.dumps(primary_data))
-        return True
-    return False
+    # Get replica information from the primary's validator info
+    output_dir = get_chaos_temp_dir()
+    with open("{}/{}-validator-info".format(output_dir, primary), 'r') as vif:
+        validator_info = json.load(vif)
+    replica_count = validator_info['Node_info']['Count_of_replicas']
+    node_info = validator_info['Node_info']
+    replica_status = node_info['Replicas_status']
 
-def start_stopped_backup_primaries(genesis_file,
-                                   ssh_config_file="~/.ssh/config"):
+    # Extract the backup primaries 
+    backup_primaries = []
+    for key in replica_status.keys():
+        # Skip the primary. It already be added if include_primary is set to
+        # True.
+        if key.endswith(":0"):
+            continue
+        alias = replica_status[key]['Primary'].split(":")[0]
+        backup_primaries.append(alias)
+
+    # Add backup primaries to node_selection in the order they are listed in
+    # the genesis file.
+    for alias in genesis_file_aliases:
+        if alias in backup_primaries:
+            # Remove the backup primary from other nodes even if it is not
+            # included in node_selection. The objective is to get other_nodes
+            # down to just the list of non-primary and non-backup-primary nodes.
+            if include_other_nodes:
+                other_nodes.remove(alias)
+            if include_backup_primaries:
+                message = "Adding the backup primary (%s) to the node_selection"
+                logger.debug(message, alias)
+                node_selection.append(alias)
+
+    # Include the list of ther nodes in node_selection?
+    if include_other_nodes:
+        message = "Adding other nodes ({}) to the node_selection list"
+        logger.debug(message.format(other_nodes))
+        node_selection.extend(other_nodes)
+
+    # Can't stop more than the number of nodes in node_selection. Rather than
+    # fail, if the caller is asking for more nodes than have been selected, stop
+    # as many as are selected.
+    if number_of_nodes > len(node_selection):
+        number_of_nodes = len(node_selection)
+
+    #import pdb; pdb.set_trace()
+    # Determine the nodes to stop based on the SelectionStrategy
+    if selection_strategy == SelectionStrategy.RANDOM.value:
+        node_selection_random = []
+        # Use a copy of the list of nodes to stop so randomly selected nodes
+        # do not get randomly selected more than once.
+        node_selection_copy = node_selection.copy()
+        for i in range(number_of_nodes):
+            random_node = random.choice(node_selection_copy)
+            node_selection_random.append(random_node)
+            # Remove the random_node so it doesn't get selected again.
+            node_selection_copy.remove(random_node)
+        node_selection = node_selection_random
+    elif selection_strategy == SelectionStrategy.REVERSE.value:
+        node_selection = list(reversed(node_selection))[0:number_of_nodes]
+    elif selection_strategy == SelectionStrategy.FORWARD.value:
+        node_selection = node_selection[0:number_of_nodes]
+
+    for node in node_selection:
+        details = stop_by_strategy(genesis_file, node, stop_strategy,
+                                   timeout=stop_node_timeout,
+                                   ssh_config_file=ssh_config_file)
+        if not details:
+            return False
+        stopped_nodes[node] = details
+
+    data = {
+        'stopped_nodes': stopped_nodes
+    }
+    with open("{}/stopped_nodes".format(output_dir), 'w') as f:
+        f.write(json.dumps(data))
+    
+    if primary in stopped_nodes.keys():
+        message = "Primary %s was included in list of demoted nodes. Wait for" \
+                  " view change."
+        logger.debug(message, primary)
+        tries = wait_for_view_change(genesis_file=genesis_file,
+            previous_primary=primary,
+            max_checks_for_primary=max_checks_for_primary,
+            sleep_between_checks=sleep_between_checks,
+            ssh_config_file=ssh_config_file)
+        if tries >= max_checks_for_primary:
+            message="No view change detected after approximately %d*%d seconds"
+            logger.debug(message, max_checks_for_primary, sleep_between_checks)
+            return False
+
+    return True
+
+def start_stopped_nodes(genesis_file,
+    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
-    Start the replicas stopped by a call to stop_n_backup_primaries.
+    Start the replicas stopped by a call to stop_n_nodes.
 
-    stop_n_backup_primaries must be called before
-    start_stopped_backup_primaries. Otherwise the stopped_replicas state
+    stop_n_nodes must be called before
+    start_stopped_nodes. Otherwise the stopped_nodes state
     file in the experiment's chaos temp dir will not exist.
     TODO: Move to a chaosindy.actions.replica.py?
-    TODO: Change state file from stopped_replicas to stopped_primary? If so,
+    TODO: Change state file from stopped_nodes to stopped_primary? If so,
           must change logic to read the file into a dict (default empty dict),
           add/update the dict, and write it out to disk. Overwriting the file
           will not work. Perhaps the common module can be enhanced to support
           get_state, set_state abstractions?
 
     Assumptions:
-      - A "stopped_replicas" file exists in the experiments chaos temp
+      - A "stopped_nodes" file exists in the experiments chaos temp
         dir and contains a JSON object produced by a call to
-        stop_n_backup_primaries, which has a stopped_backup_primaries attribute.
-      - A "stopped_backup_primaries" element exists in the JSON
+        stop_n_nodes, which has a stopped_nodes attribute.
+      - A "stopped_nodes" element exists in the JSON
 
     Arguments:
       genesis_file - path to the pool genesis transaction file
@@ -1330,27 +1436,27 @@ def start_stopped_backup_primaries(genesis_file,
     """
     output_dir = get_chaos_temp_dir()
     stopped_primary_dict = {}
-    stopped_replicas_file = "{}/stopped_replicas".format(output_dir)
+    stopped_nodes_file = "{}/stopped_nodes".format(output_dir)
     try:
-        with open(stopped_replicas_file, 'r') as stopped_primary:
+        with open(stopped_nodes_file, 'r') as stopped_primary:
             stopped_primary_dict = json.load(stopped_primary)
     except FileNotFoundError as e:
-        message = """%s does not exist. Must call stop_n_backup_primaries before'
-                     calling start_stopped_backup_primaries"""
-        logger.error(message, stopped_replicas_file)
+        message = """%s does not exist. Must call stop_n_nodes before'
+                     calling start_stopped_nodes"""
+        logger.error(message, stopped_nodes_file)
         logger.exception(e)
         return False
 
-    stopped_backup_primaries = stopped_primary_dict.get('stopped_backup_primaries', None)
-    if not stopped_backup_primaries:
-        message ="""Missing stopped_backup_primaries element in
-                    stopped_replicas state file {}"""
-        logger.error(message.format(stopped_replicas_file))
+    stopped_nodes = stopped_primary_dict.get('stopped_nodes', None)
+    if not stopped_nodes:
+        message ="""Missing stopped_nodes element in
+                    stopped_nodes_file state file {}"""
+        logger.error(message.format(stopped_nodes_file))
         return False
 
-    for backup_primary in stopped_backup_primaries.keys():
+    for backup_primary in stopped_nodes.keys():
         succeeded = start_by_strategy(genesis_file, backup_primary,
-            stopped_backup_primaries[backup_primary],
+            stopped_nodes[backup_primary],
             ssh_config_file=ssh_config_file)
         if not succeeded:
             return False
@@ -1366,7 +1472,7 @@ def decrease_f_to(genesis_file,
                   wallet_key=DEFAULT_CHAOS_WALLET_KEY,
                   timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
                   pause_after=DEFAULT_CHAOS_PAUSE,
-                  ssh_config_file="~/.ssh/config"):
+                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     if f_value:
         f_value = int(f_value)
     if selection_strategy:
@@ -1471,7 +1577,8 @@ def decrease_f_to(genesis_file,
 
 
 def revert_f(genesis_file, timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-             pause_after=DEFAULT_CHAOS_PAUSE, ssh_config_file="~/.ssh/config"):
+             pause_after=DEFAULT_CHAOS_PAUSE,
+             ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     """
     Promote all nodes in state file demoted-nodes.
     """
