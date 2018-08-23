@@ -129,6 +129,7 @@ for node in aliases:
         rows.append(row)
     except Exception as e:
         print("{} Encontered exception: {}".format(node, e))
+        rows.append([node])
 pt.field_names = field_names
 for row in rows:
     # Replica count may be different from node to node. All other columns

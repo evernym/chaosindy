@@ -10,7 +10,7 @@ genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_tr
 seed = environ.get('CHAOS_SEED', '000000000000000000000000Steward1')
 
 # Generate a temp dir containing JSON for each validator node
-get_current_validator_state(genesis_file=genesis_file, seed=seed)
+get_current_validator_state(genesis_file=genesis_file, seed=seed, timeout=120)
 temp_dir = get_chaos_temp_dir()
 
 aliases = []

@@ -1257,9 +1257,17 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
       include_primary - Include the primary when selecting nodes using the
                         stop_strategy?
       include_backup_primaries - Include the backup primaries when selecting
-                               nodes using the stop_strategy?
-      include_other_nodes - Include non-primary and non-backup-primary nodes when
-                      selecting nodes using the stop_strategy?
+                                 nodes using the stop_strategy?
+      include_other_nodes - Include non-primary and non-backup-primary nodes
+                            when selecting nodes using the stop_strategy?
+      max_checks_for_primary - When a primary is stopped, what is the maximum
+                               number of times the function should check for a
+                               view change? See sleep_between_checks.
+      sleep_between_checks - When a primary is stopped, how long should the
+                             function sleep between checks for a view change.
+                             See max_checks_for_primary.
+      stop_node_timeout - How long should the function wait for stop_strategy
+                          operation to complete?
       ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
     """
     # Variable substitution in chaostoolkit appears to only support strings.
