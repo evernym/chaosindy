@@ -5,15 +5,17 @@ from logzero import logger
 from os.path import expanduser
 from time import sleep
 
-def node_ports_are_reachable(genesis_file, node):
-    '''
+def node_ports_are_reachable(genesis_file: str, node: str) -> bool:
+    """
     Are the client and node ports reachable on a given node?
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-      node - The node alias used to get the IP address and ports from
-             genesis_file
-    '''
+    :param genesis_file: The relative or absolute path to the pool genesis
+        transaction file
+    :type genesis_file: str
+    :param node: The node alias used to get the IP address and ports from
+        genesis_file
+    :type node: str
+    """
     # Search for ip and node port info for both client and node port
     with open(expanduser(genesis_file), 'r') as genesisfile:
         for line in genesisfile:

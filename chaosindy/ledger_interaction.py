@@ -10,10 +10,48 @@ from datetime import datetime
 # NOTE: Workaround: Until https://jira.hyperledger.org/browse/IS-903 is
 #       completed, create, populate, use and then delete a new wallet each time
 #       write_nym_and_check is called.
-async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
-                              my_wallet_key=None, their_wallet_name=None,
-                              their_wallet_key=None, genesis_file=None,
-                              cleanup=True):
+async def write_nym_and_check(seed: str = None, pool_name: str = None,
+                              my_wallet_name: str = None,
+                              my_wallet_key: str = None,
+                              their_wallet_name: str = None,
+                              their_wallet_key: str = None,
+                              genesis_file: str = None,
+                              cleanup=True) -> None:
+    """
+    Write a NYM to the ledger.
+
+    Write a NYM to the ledger and confirm/check that it was successfull by
+    reading the NYM from the ledger. Not idempotent.
+
+    :param seed: 32 byte string used to generate did, verkey pair. The seed must
+        be the seed for a Trustee, Steward, or Trust Anchor.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param pool_name: Pool name
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool_name: str
+    :param my_wallet_name: My wallet name
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_MY_WALLET_NAM)
+    :type my_wallet_name: str
+    :param my_wallet_key: My wallet key
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type my_wallet_key: str
+    :param their_wallet_name: Their wallet name
+        Optional. (Default: chaosindy.common.DEFAULT_THEIR_WALLET_NAME)
+    :type their_wallet_name: str
+    :param their_wallet_key: Their wallet key
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type their_wallet_key: str
+    :param genesis_file: Relative or absolute path to the pool's genesis
+        transaction file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_GENESIS_FILE)
+    :type genesis_file: str
+    :param cleanup: Delete wallets and pool configuration?
+        Optional. (Default: True)
+    :type cleanup: bool
+    :return: None
+    """
+    # TODO: validate inputs
     if seed is None:
         seed = DEFAULT_CHAOS_SEED
 
@@ -94,7 +132,8 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
                                                    their_wallet_credentials)
 
     logger.debug('# 5. Create My DID')
-    (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle, "{}")
+    (my_did, my_verkey) = await did.create_and_store_my_did(my_wallet_handle,
+                                                            "{}")
 
     logger.debug('# 6. Create Their DID from Trustee1 seed')
     try:
@@ -102,18 +141,22 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
             their_wallet_handle, json.dumps({"seed": seed}))
     except IndyError as e:
         if e.error_code == ErrorCode.DidAlreadyExistsError:
-            # TODO: Generate (their_did, their_verkey) tuple from seed (like DidUtils::create_my_did)
+            # TODO: Generate (their_did, their_verkey) tuple from seed (like
+            #       DidUtils::create_my_did)
             logger.info("Handled DidAlreadyExistsError exception...")
             pass
         else:
             logger.exception(e)
             raise e
 
-    await did.store_their_did(my_wallet_handle, json.dumps({'did': their_did, 'verkey': their_verkey}))
+    their_dict = {'did': their_did, 'verkey': their_verkey}
+    await did.store_their_did(my_wallet_handle, json.dumps(their_dict))
 
     logger.debug('# 8. Prepare and send NYM transaction')
-    nym_txn_req = await ledger.build_nym_request(their_did, my_did, None, None, None)
-    await ledger.sign_and_submit_request(pool_handle, their_wallet_handle, their_did, nym_txn_req)
+    nym_txn_req = await ledger.build_nym_request(their_did, my_did, None, None,
+                                                 None)
+    await ledger.sign_and_submit_request(pool_handle, their_wallet_handle,
+                                         their_did, nym_txn_req)
 
     logger.debug('# 9. Prepare and send GET_NYM request')
     get_nym_txn_req = await ledger.build_get_nym_request(their_did, my_did)
@@ -134,14 +177,15 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
                                        their_wallet_credentials)
         except Exception as e:
             logger.info("Best-effort deletion of wallet %s failed.",
-                        their_wallet_name) 
+                        their_wallet_name)
             #logger.exception(e)
             pass
 
         try:
             await wallet.delete_wallet(my_wallet_config, my_wallet_credentials)
         except Exception as e:
-            logger.info("Best-effort deletion of wallet %s failed.", my_wallet_name)
+            logger.info("Best-effort deletion of wallet %s failed.",
+                        my_wallet_name)
             #logger.exception(e)
             pass
 
@@ -150,7 +194,7 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
             await pool.delete_pool_ledger_config(pool_name)
         except Exception as e:
             logger.info("Best-effort deletion of %s pool ledger config failed.",
-                        pool_name) 
+                        pool_name)
             #logger.exception(e)
             pass
 
@@ -158,19 +202,45 @@ async def write_nym_and_check(seed=None, pool_name=None, my_wallet_name=None,
 # NOTE: Workaround: Until https://jira.hyperledger.org/browse/IS-903 is
 #       completed, create, populate, use and then delete a new wallet each time
 #       write_nym_and_check is called.
-async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
-                              wallet_name=None, wallet_key=None, cleanup=True):
+async def get_validator_state(genesis_file: str = None, seed: str = None,
+                              pool_name: str = None, wallet_name: str = None,
+                              wallet_key: str = None, cleanup=True) -> None:
     """
     Not to be confused with the validator-info script or the indy-cli
     `ledger get-validator-info`.
 
     This version of validator info is extracted from the pool ledger.
+
+    :param genesis_file: Relative or absolute path to the pool's genesis
+        transaction file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_GENESIS_FILE)
+    :type genesis_file: str
+    :param seed: 32 byte string used to generate did, verkey pair.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param pool_name: Pool name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool_name: str
+    :param wallet_name: Wallet name
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: Wallet key
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param cleanup: Delete the wallet and pool configuration?
+        Optional. (Default: True)
+    :type cleanup: bool
+    :return: None
     """
     output_dir = get_chaos_temp_dir()
-
     validators = {}
-    # validators is dictionary of dictionaries that maps dest to the current values of the attritubes for that dest
-    #  { dest1:{'alias':value1, 'blskey':value1, ...} , dest2:{'alias':value2, 'blskey':value2, ...}, ...}
+    # validators is a dictionary of dictionaries that maps dest to the current
+    # values of the attritubes for that dest
+    #  {
+    #    dest1:{'alias':value1, 'blskey':value1, ...},
+    #    dest2:{'alias':value2, 'blskey':value2, ...},
+    #    ...
+    #  }
 
     if seed is None:
         seed = DEFAULT_CHAOS_STEWARD_SEED
@@ -230,12 +300,18 @@ async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
     try:
         logger.debug('# 4. Create My DID')
         did_json = json.dumps({'seed': seed})
-        (my_did, my_verkey) = await did.create_and_store_my_did(wallet_handle, did_json)
+        (my_did, my_verkey) = await did.create_and_store_my_did(wallet_handle,
+                                                                did_json)
     except IndyError as e:
-        # TODO: Generate (my_did, my_verkey) tuple from seed (like DidUtils::create_my_did)
-        my_did = "Th7MpTaRZVRYnPiabds81Y"
-        logger.info("Handled IndyError")
-        #logger.exception(e)
+        if e.error_code == ErrorCode.DidAlreadyExistsError:
+            # TODO: Generate (their_did, their_verkey) tuple from seed (like
+            #       DidUtils::create_my_did)
+            #my_did = "Th7MpTaRZVRYnPiabds81Y"
+            logger.info("Handled DidAlreadyExistsError exception...")
+            pass
+        else:
+            logger.exception(e)
+            raise e
         pass
 
     end_of_ledger = False
@@ -303,7 +379,8 @@ async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
         try:
             await wallet.delete_wallet(wallet_config, wallet_credentials)
         except Exception as e:
-            logger.info("Best-effort deletion of wallet %s failed.", wallet_name) 
+            logger.info("Best-effort deletion of wallet %s failed.",
+                        wallet_name)
             #logger.exception(e)
             pass
 
@@ -311,6 +388,6 @@ async def get_validator_state(genesis_file=None, seed=None, pool_name=None,
             await pool.delete_pool_ledger_config(pool_name)
         except Exception as e:
             logger.info("Best-effort deletion of %s pool ledger config failed.",
-                        pool_name) 
+                        pool_name)
             #logger.exception(e)
             pass

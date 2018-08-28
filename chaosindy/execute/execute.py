@@ -14,25 +14,56 @@ from paramiko import AuthenticationException
 from typing import List
 
 Result = namedtuple('Result', ['return_code', 'stdout', 'stderr'])
-ParallelResult = namedtuple('ParallelResult', ['host', 'return_code', 'stdout', 'stderr'])
+ParallelResult = namedtuple('ParallelResult',
+                            ['host', 'return_code', 'stdout', 'stderr'])
 
 
 class RemoteExecutor(object):
+    """
+    RemoteExecutor base class
+
+    Requires sub-classes to define private abstract methods/functions.
+    """
     __metaclass__ = abc.ABCMeta
 
-    def execute(self, host: str, action: str, user: str = None, as_sudo=False, **kwargs):
-        rtn = self._execute_on_host(host, action, user=user, as_sudo=as_sudo, **kwargs)
+    def execute(self, host: str, action: str, user: str = None,
+                as_sudo: bool = False, **kwargs):
+        """
+        Execute an action on a host as a given user.
+
+        :param host: hostname
+            Required.
+        :type host: str
+        :param action: A command to execute on the host.
+            Required.
+        :type action: str
+        :param user: The user to execute the action.
+            Optional. (Default: None)
+        :type user: str
+        :param as_sudo: Should the user execute the action as sudo?
+            Optional. (Default: False)
+        :type as_sudo: bool
+        """
+        rtn = self._execute_on_host(host, action, user=user, as_sudo=as_sudo,
+                                    **kwargs)
         return rtn
 
     @abc.abstractmethod
-    def _execute_on_host(self, host: str, action: str, user: str = None, as_sudo=False) -> str:
-        raise NotImplementedError('users must define _execute_on_host to use this base class')
+    def _execute_on_host(self, host: str, action: str, user: str = None,
+                         as_sudo: bool = False) -> str:
+        raise NotImplementedError("users must define _execute_on_host to use " \
+                                  "this base class")
 
 
 class FabricExecutor(RemoteExecutor):
+    """
+    A Phython Fabric-based remote executor.
+    """
     @staticmethod
-    def _multiprocess_execute_on_host(q, host, action, config, user=None, as_sudo=False, connect_kwargs=None):
-        with Connection(host, config=config, user=user, connect_kwargs=connect_kwargs) as c:
+    def _multiprocess_execute_on_host(q, host, action, config, user=None,
+                                      as_sudo=False, connect_kwargs=None):
+        with Connection(host, config=config, user=user,
+                        connect_kwargs=connect_kwargs) as c:
             if as_sudo:
                 rtn = c.sudo(action, hide=True)
                 #rtn = c.sudo(action, hide=True, pty=True)
@@ -45,7 +76,8 @@ class FabricExecutor(RemoteExecutor):
     config = None
 
     def __init__(self, ssh_config_file=None):
-        self.config = FabricExecutor._create_config(ssh_config_file=ssh_config_file)
+        self.config = FabricExecutor._create_config(
+            ssh_config_file=ssh_config_file)
         pass
 
     # @staticmethod
@@ -69,7 +101,8 @@ class FabricExecutor(RemoteExecutor):
             else:
                 raise OSError("Path is not to a file -- '%s'" % str(path))
         else:
-            raise OSError("Unable to access the file (not readable) -- %s -- '%s'" % (file_kind, path))
+            raise OSError("Unable to access the file (not readable) -- %s -- " \
+                          "'%s'" % (file_kind, path))
 
     @staticmethod
     def _collect_connect_kwargs(identity_file):
@@ -84,17 +117,24 @@ class FabricExecutor(RemoteExecutor):
 
         return connect_kwargs
 
-    def _execute_on_host(self, host: str, action: str, user: str = None, as_sudo=False, identity_file=None,
-                         timeout=10) -> str:
+    def _execute_on_host(self, host: str, action: str, user: str = None,
+                         as_sudo: bool = False, identity_file: str = None,
+                         timeout: int = 10) -> str:
         connect_kwargs = self._collect_connect_kwargs(identity_file)
 
         p = None
         q = Queue()
         try:
-            # Running execution in a subprocess - Did this to avoid errors in paramiko clean up.
+            # Running execution in a subprocess - Did this to avoid errors in
+            # paramiko clean up.
+            keyword_args = {
+                "user": user,
+                "as_sudo": as_sudo,
+                "connect_kwargs": connect_kwargs
+            }
             p = Process(target=FabricExecutor._multiprocess_execute_on_host,
                         args=(q, host, action, self.config),
-                        kwargs={'user': user, "as_sudo": as_sudo, "connect_kwargs": connect_kwargs})
+                        kwargs=keyword_args)
             p.start()
             p.join(timeout=timeout)
             if p.is_alive():
@@ -111,6 +151,14 @@ class FabricExecutor(RemoteExecutor):
         return rtn
 
 class ParallelFabricExecutor(FabricExecutor):
+    """
+    A Phython Fabric-based remote executor capable of parallel processing remote
+    execution.
+
+    The number of processes that may run in parallel is limited by a client's
+    CPU count. The more cpu cores, the more remote execution can happen in
+    parallel.
+    """
     _processes = []
     config = None
     # DEBUG PARALLELIZATION
@@ -158,7 +206,8 @@ class ParallelFabricExecutor(FabricExecutor):
             # Set process name
             process_name = 'P%i' % i
             # Create the process, and connect it to the worker function
-            new_process = Process(target=self.do_work, args=(process_name,self._tasks,self._results))
+            new_process = Process(target=self.do_work,
+                                  args=(process_name,self._tasks,self._results))
             # Add new process to the list of processes
             self._processes.append(new_process)
             # Start the process
@@ -179,8 +228,8 @@ class ParallelFabricExecutor(FabricExecutor):
         #    self.close_print()
         #    self.f = None
 
-    def _parallel_execute_on_host(self, results, host, action, config, user=None,
-                                  as_sudo=False, **kwargs):
+    def _parallel_execute_on_host(self, results, host, action, config,
+                                  user=None, as_sudo=False, **kwargs):
         if action == "pytest":
             # DEBUG PARALLELIZATION
             #self.print("Returning mocked ParallelResult\n")
@@ -208,7 +257,8 @@ class ParallelFabricExecutor(FabricExecutor):
                     rtn = c.run(action, hide=True)
                     #rtn = c.run(action, hide=True, pty=True)
 
-                results.put(ParallelResult(host, rtn.return_code, rtn.stdout, rtn.stderr))
+                results.put(ParallelResult(host, rtn.return_code, rtn.stdout,
+                                           rtn.stderr))
             # DEBUG PARALLELIZATION
             #self.print("Connection closed\n")
 
@@ -232,8 +282,8 @@ class ParallelFabricExecutor(FabricExecutor):
                     results.put(ParallelResult("", -999, "", ""))
                     break
                 else:
-                    # Unpack tuple into variables. See self.tasks.put in 'execute'
-                    # member function
+                    # Unpack tuple into variables. See self.tasks.put in
+                    # 'execute' member function
                     host = new_tuple[0]
                     action = new_tuple[1]
                     user = new_tuple[2]
@@ -255,20 +305,26 @@ class ParallelFabricExecutor(FabricExecutor):
                     #self.print('as_sudo: {}\n'.format(as_sudo))
                     #self.print('kwargs: {}\n'.format(json.dumps(kwargs_dict)))
                     #self.print('Before call to _parallel_execute_on_host\n')
-                    #self.print('Details about _parallel_execute_on_host: {}\n'.format(getattr(self, '_parallel_execute_on_host')))
+                    #self.print('Details about _parallel_execute_on_host: ' \
+                    #           '{}\n'.format(
+                    #           getattr(self, '_parallel_execute_on_host')))
 
                     self._parallel_execute_on_host(results, host, action,
                                                    self.config, user=user,
-                                                   as_sudo=as_sudo, **kwargs_dict)
+                                                   as_sudo=as_sudo,
+                                                   **kwargs_dict)
                     # DEBUG PARALLELIZATION
                     #self.print('After call to _parallel_execute_on_host\n')
         return
 
-    def execute(self, hosts: List[str], action: str, user: str = None, as_sudo=False, **kwargs):
+    def execute(self, hosts: List[str], action: str, user: str = None,
+                as_sudo: bool = False, **kwargs):
         # DEBUG PARALLELIZATION
         #self.print("In execute...\n")
-        #self.print("The instance's _parallel_execute_on_host function has been patched by pytest at this point...\n")
-        #self.print('Details about _parallel_execute_on_host: {}\n'.format(getattr(self, '_parallel_execute_on_host')))
+        #self.print("The instance's _parallel_execute_on_host function has " \
+        #           "been patched by pytest at this point...\n")
+        #self.print('Details about _parallel_execute_on_host: {}\n'.format(
+        #           getattr(self, '_parallel_execute_on_host')))
         identity_file = kwargs.pop('identity_file', None)
         connect_kwargs = self._collect_connect_kwargs(identity_file)
         kwargs['connect_kwargs'] = connect_kwargs
@@ -282,8 +338,8 @@ class ParallelFabricExecutor(FabricExecutor):
         for host in hosts:
             self._tasks.put((host, action, user, as_sudo, kwargs))
 
-        # Signal the do_work worker function/process to exit. An empty tuple will
-        # be the signal for a worker process to exit.
+        # Signal the do_work worker function/process to exit. An empty tuple
+        # will be the signal for a worker process to exit.
         for host in hosts:
             self._tasks.put(())
 

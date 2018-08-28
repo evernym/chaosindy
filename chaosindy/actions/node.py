@@ -11,10 +11,32 @@ from logzero import logger
 from multiprocessing import Pool
 from os.path import expanduser, join
 from time import sleep
+from typing import Union, List, Dict
 
-def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
-                  timeout=DEFAULT_CHAOS_LOAD_TIMEOUT,
-                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def generate_load(client: str, command: str = DEFAULT_CHAOS_LOAD_COMMAND,
+                  timeout: Union[str,int] = DEFAULT_CHAOS_LOAD_TIMEOUT,
+                  ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Generate load on the ledger from a single client.
+
+    Returns True if the command runs to completion without error. Otherwise,
+    returns False.
+
+    :param client: The client's alias/hostname from which to generate load.
+        Required.
+    :type client: str
+    :param command: The load command to execute from the given client.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_LOAD_COMMAND)
+    :type command: str
+    :param timeout: How long the command may execute before timing out.
+        Optional. (Default: chaosindy.common.DEFAULT_LOAD_TIMEOUT)
+    :type timeout: str or int
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     message = """Generating load from client %s using command >%s< and timeout
                  >%s seconds<"""
     logger.info(message, client, command, timeout)
@@ -26,9 +48,32 @@ def generate_load(client, command=DEFAULT_CHAOS_LOAD_COMMAND,
         return False
     return True
 
-def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
-                           timeout=DEFAULT_CHAOS_LOAD_TIMEOUT,
-                           ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def generate_load_parallel(clients = List[str],
+    command: str = DEFAULT_CHAOS_LOAD_COMMAND,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LOAD_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Generate load on the ledger from one or more clients in parallel.
+
+    :param clients: A list of client aliases/hostnames from which to generate
+        load. Required.
+    :type clients: List[str]
+    :param command: The load command to execute from the given client(s). To get
+        this right, first try to execute the command that generates load on each
+        client to ensure the load script is found/reachable and accepts the
+        parameters/options you are passing to it.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_LOAD_COMMAND)
+    :type command: str
+    :param timeout: How long the command may execute before timing out.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_LOAD_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     message = """Generating load from clients %s using command >%s< and timeout
                  >%s seconds<"""
     logger.info(message, clients, command, timeout)
@@ -54,8 +99,21 @@ def generate_load_parallel(clients, command=DEFAULT_CHAOS_LOAD_COMMAND,
     return True
 
 
-def apply_iptables_rule_by_node_name(node, rule,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def apply_iptables_rule_by_node_name(node: str, rule: str,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Apply an iptables rule on a node.
+
+    :param node: The node's alias/hostname. Required.
+    :type node: str
+    :param rule: The iptables rule. Required.
+    :type rule: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     logger.debug("applying iptables rule >%s< on node: %s", rule, node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
@@ -74,19 +132,50 @@ def apply_iptables_rule_by_node_name(node, rule,
     return True
 
 
-def block_port_by_node_name(node, port,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def block_port_by_node_name(node: str, port: str,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Block a port on a node.
+
+    :param node: The node's alias/hostname. Required.
+    :type node: str
+    :param port: The port or port range to block. A port range is formatted
+        <from port>:<to port>. Required.
+    :type port: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     logger.debug("block node %s on port %s", node, port)
     ## 1. Block a port or port range using a firewall
     if ":" in port:
-        rule = "-A INPUT -p tcp --match multiport --dports {} -j DROP".format(port)
+        rule = "-A INPUT -p tcp --match multiport --dports {} -j" \
+               " DROP".format(port)
     else:
         rule = "-A INPUT -p tcp --destination-port {} -j DROP".format(port)
     return apply_iptables_rule_by_node_name(node, rule, ssh_config_file)
 
 
-def unblock_port_by_node_name(node, port, best_effort=False,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def unblock_port_by_node_name(node: str, port: str, best_effort: bool = False,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Unblock a port on a node.
+
+    :param node: The node's alias/hostname. Required.
+    :type node: str
+    :param port: The port or port range to block. A port range is formatted
+        <from port>:<to port>. Required.
+    :type port: str
+    :param best_effort: Do NOT fail if the operation fails? (Default: False)
+    :type best_effort: bool
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     logger.debug("unblock node %s on port %s", node, port)
     do_not_fail = ""
     if best_effort:
@@ -94,9 +183,11 @@ def unblock_port_by_node_name(node, port, best_effort=False,
 
     ## 1. Unblock a port or port range using a firewall
     if ":" in port:
-        rule = "-D INPUT -p tcp --match multiport --dports {} -j DROP{}".format(port, do_not_fail)
+        rule = "-D INPUT -p tcp --match multiport --dports {} -j" \
+               " DROP{}".format(port, do_not_fail)
     else:
-        rule = "-D INPUT -p tcp --destination-port {} -j DROP{}".format(port, do_not_fail)
+        rule = "-D INPUT -p tcp --destination-port {} -j" \
+               " DROP{}".format(port, do_not_fail)
 
     try:
         return apply_iptables_rule_by_node_name(node, rule, ssh_config_file)
@@ -106,10 +197,22 @@ def unblock_port_by_node_name(node, port, best_effort=False,
 
     return True
 
-def indy_node_is_stopped(node, timeout=30,
-                         ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def indy_node_is_stopped(node: str, timeout: Union[str,int] = 30,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Check if indy-node and indy-node-control services are stopped.
+
+    :param node: The node alias. Required.
+    :type node: str
+    :param timeout: Timeout waiting for status response.
+        Optional. (Default: 30 seconds)
+    :type timeout: Union[str, int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     # TODO: Decide if `systemctl is-active indy-node` is sufficient. Until then
     #       assume that absense of a pid is more definitive.
@@ -124,10 +227,46 @@ def indy_node_is_stopped(node, timeout=30,
        return True
     return False
 
-def stop_by_node_name(node, gracefully=True, force=True, timeout=30,
-                      ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def stop_by_node_name(node: str, gracefully: bool = True, force: bool = True,
+    timeout: Union[str,int] = 30,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Stop indy-node service by node name/alias
+
+    The following combinations of 'gracefully' and 'force' flags should be
+    considered:
+    gracefully: True  force: False - Only stop indy-node using systemctl
+    gracefully: False force: True  - Kill the indy-node process. Do not allow it
+                                     to gracefully shutdown.
+    gracefully: True  force: True  - First try to stop indy node using systemctl
+                                     and kill -9 the process if and only if
+                                     systemctl fails to stop the process
+                                     gracefully.
+
+    :param node: The node name/alias. Required.
+    :type node: str
+    :param gracefully: Use systemctl to stop the services?
+    :type gracefully: bool
+    :param force: kill -9 (SIGKILL) the services?
+    :type force: bool
+    :param timeout: Timeout waiting for service to stop.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_LOAD_COMMAND)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     logger.debug("stop node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
+
+    # Do not allow both gracefully and force to be set to False
+    if not gracefully and not force:
+        logger.info("Invalid gracefully/force flag options. Setting both to " \
+                    "False is effectively a no-op.")
+        return False
 
     if gracefully:
         logger.debug("Attempting to stop indy-node service gracefully...")
@@ -176,11 +315,23 @@ def stop_by_node_name(node, gracefully=True, force=True, timeout=30,
     return True
 
 
-def start_by_node_name(node, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def start_by_node_name(node: str,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Start indy-node service by node name/alias
+
+    :param node: The node name/alias. Required.
+    :type node: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     logger.debug("start node: %s", node)
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
-    # 1. Stop the node by alias name
+    # Start the node by alias name
     result = executor.execute(node, "systemctl start indy-node", as_sudo=True)
     if result.return_code != 0:
         logger.error("Failed to start %s", node)
@@ -189,7 +340,19 @@ def start_by_node_name(node, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     return True
 
 
-def start_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def start_nodes(aliases: List[str] = [],
+                ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Start indy-node service on a list of nodes.
+
+    :param aliases: A list of nodes. Required.
+    :type aliases: List[str]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     # Start all nodes listed in aliases list
     count = len(aliases)
     tried_to_start = 0
@@ -200,14 +363,28 @@ def start_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
             are_alive += 1
         tried_to_start += 1
 
-    logger.debug("are_alive: %s -- count: %s -- tried_to_start: %s -- len-aliases: %s", are_alive, count, tried_to_start, len(aliases))
+    logger.debug("are_alive: %s -- count: %s -- tried_to_start: %s -- " \
+                 "len-aliases: %s", are_alive, count, tried_to_start,
+                 len(aliases))
     if are_alive != int(count):
         return False
 
     return True
 
 
-def stop_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def stop_nodes(aliases: List[str] = [],
+               ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Stop indy-node service on a list of nodes.
+
+    :param aliases: A list of nodes. Required.
+    :type aliases: List[str]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     # Start all nodes listed in aliases list
     count = len(aliases)
     tried_to_stop = 0
@@ -218,7 +395,9 @@ def stop_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
             are_alive += 1
         tried_to_stop += 1
 
-    logger.debug("are_alive: %s -- count: %s -- tried_to_stop: %s -- len-aliases: %s", are_alive, count, tried_to_stop, len(aliases))
+    logger.debug("are_alive: %s -- count: %s -- tried_to_stop: %s -- " \
+                 "len-aliases: %s", are_alive, count, tried_to_stop,
+                 len(aliases))
 
     if are_alive != int(count):
         return False
@@ -226,8 +405,21 @@ def stop_nodes(aliases=[], ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     return True
 
 
-def all_nodes_up(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    logger.debug("genesis_file: %s -- ssh_config_file: %s", genesis_file, ssh_config_file)
+def all_nodes_up(genesis_file: str,
+                 ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Ensure indy-node service is running on all nodes in the genesis file.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+    :type genesis_file: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
+    logger.debug("genesis_file: %s -- ssh_config_file: %s", genesis_file,
+                 ssh_config_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
     logger.debug(aliases)
@@ -236,8 +428,19 @@ def all_nodes_up(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
     return start_nodes(aliases, ssh_config_file)
 
 
-def unblock_node_port_all_nodes(genesis_file, best_effort=True,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def unblock_node_port_all_nodes(genesis_file: str, best_effort: bool = True,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Unblock indy-node port on all nodes.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+    :type genesis_file: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     logger.debug("genesis_file: %s", genesis_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -247,7 +450,8 @@ def unblock_node_port_all_nodes(genesis_file, best_effort=True,
         logger.debug("node: %s -- genesis_file: %s", node, genesis_file)
         node_info = get_info_by_node_name(genesis_file, node)
         try:
-            unblock_port_by_node_name(node, str(node_info['node_port']), ssh_config_file)
+            unblock_port_by_node_name(node, str(node_info['node_port']),
+                                      ssh_config_file)
         except Exception as e:
             logger.exception(e)
             if not best_effort:
@@ -256,7 +460,27 @@ def unblock_node_port_all_nodes(genesis_file, best_effort=True,
     return True
 
 
-def get_random_nodes(genesis_file, count):
+def get_random_nodes(genesis_file: str, count: Union[str,int]) -> List[str]:
+    """
+    Randomly select and return a unique set of nodes.
+
+    If the caller requests more nodes than are defined in the genesis file, a
+    complete list will be returned in random order. It is up to the caller to
+    check if the returned list contains the number of nodes requested.
+
+    Nodes are removed from consideration once they have been selected. Doing so
+    ensures a unique set of random nodes.
+
+    TODO: decide if a (int, List) tuple would be a more desireable return type
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required
+    :type genesis_file: str
+    :param count: How many nodes to randomly select from the genesis file.
+        Required
+    :type count: Union[str,int]
+    :return: List[str]
+    """
     logger.debug("genesis_file: %s -- count: %s", genesis_file, count)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
@@ -272,12 +496,45 @@ def get_random_nodes(genesis_file, count):
         selected.append(node)
         tried_to_get += 1
 
-    logger.debug("selected: %s, count: %s, len-aliases: %s", len(selected), count, number_of_aliases)
+    logger.debug("selected: %s, count: %s, len-aliases: %s", len(selected),
+                 count, number_of_aliases)
     return selected
 
 
-def block_node_port_random(genesis_file, count,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def block_node_port_random(genesis_file: str, count: Union[str,int],
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Block the indy-node port on a random set of nodes.
+
+    If the caller requests more nodes than are defined in the genesis file, all
+    nodes will be blocked in random order.
+
+    State file "block_node_port_random" located in the chaos temp dir (see
+    get_chaos_temp_dir for details) is shared with the following functions
+    block_node_port_random
+    unblock_node_port_random
+    unblocked_nodes_are_caught_up
+
+    Because the aforementioned functions share a state file, they are intended
+    to be used together. The typical workflow would be:
+
+    1. Block the node port on some nodes (block_node_port_random)
+    2. Optionally do something while node ports are blocked (i.e. generate load)
+    3. Unblock node port on the set of nodes selected in step 1 above.
+    4. Optionally do something while nodes are catching up.
+    5. Check if nodes unblocked in step 3 above are caught up.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param count: The number of nodes
+    :type count: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the
+        ssh_config_file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     selected = get_random_nodes(genesis_file, count)
@@ -294,9 +551,12 @@ def block_node_port_random(genesis_file, count,
             blocked += 1
         tried_to_block += 1
 
-    logger.debug("blocked: %s -- count: %s -- tried_to_block: %s -- len-aliases: %s", blocked, count, tried_to_block, len(selected))
+    logger.debug("blocked: %s -- count: %s -- tried_to_block: %s -- " \
+                 "len-aliases: %s", blocked, count, tried_to_block,
+                 len(selected))
 
-    # Write out the block_node_port_random file to the temp output_dir created for this experiment
+    # Write out the block_node_port_random file to the temp output_dir created
+    # for this experiment
     with open(join(output_dir, "block_node_port_random"), "w") as f:
         f.write(json.dumps(blocked_ports))
 
@@ -306,15 +566,74 @@ def block_node_port_random(genesis_file, count,
     return True
 
 
-def unblocked_nodes_are_caught_up(genesis_file, transactions=None,
-                                  pause_before_synced_check=None,
-                                  best_effort=True,
-                                  did=DEFAULT_CHAOS_DID,
-                                  seed=DEFAULT_CHAOS_SEED,
-                                  wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                                  wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                                  pool=DEFAULT_CHAOS_POOL,
-                                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def unblocked_nodes_are_caught_up(genesis_file: str,
+    transactions: Union[str,int] = None,
+    pause_before_synced_check: Union[str,int] = None, best_effort: bool = True,
+    did: str = DEFAULT_CHAOS_DID, seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Check if unblocked nodes have completed catchup.
+
+    State file "block_node_port_random" located in the chaos temp dir (see
+    get_chaos_temp_dir for details) is shared with the following functions
+    block_node_port_random
+    unblock_node_port_random
+    unblocked_nodes_are_caught_up
+
+    Because the aforementioned functions share a state file, they are intended
+    to be used together. The typical/suggested workflow would be:
+
+    1. Block the node port on some nodes (block_node_port_random)
+    2. Optionally do something while node ports are blocked (i.e. generate load)
+    3. Unblock node port on the set of nodes selected in step 1 above.
+    4. Optionally do something while nodes are catching up.
+    5. Check if nodes unblocked in step 3 above are caught up.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param transactions: Expected number of transactions on the domain ledger
+        after catchup has completed.
+        Optional. (Default: None)
+    :type transactions: Union[str,int]
+    :param pause_before_synced_check: Seconds to pause before checking if a node
+        is synced.
+        Optional. (Default: None)
+    :type pause_before_synced_check: Union[str,int]
+    :param best_effort: Check if unblocked nodes are caught up without failing.
+        For example, do not fail if the block_node_port_random state file does
+        not exist.
+        Optional. (Default: True)
+    :type best_effort: bool
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     #
@@ -327,7 +646,8 @@ def unblocked_nodes_are_caught_up(genesis_file, transactions=None,
         with open(join(output_dir, "block_node_port_random"), "r") as f:
             blocked_ports = json.load(f)
     except Exception as e:
-        # Do not fail on exceptions like FileNotFoundError if best_effort is True
+        # Do not fail on exceptions like FileNotFoundError if best_effort is
+        # True
         if best_effort:
             return True
         else:
@@ -335,28 +655,95 @@ def unblocked_nodes_are_caught_up(genesis_file, transactions=None,
 
     selected = blocked_ports.keys()
 
-    # Only check if resurrected nodes are caught up if both a pause and number of
-    # transactions are given.
+    # Only check if resurrected nodes are caught up if both a pause and number
+    # of transactions are given.
     if pause_before_synced_check and transactions:
-        logger.debug("Pausing %s seconds before checking if unblocked nodes are synced...", pause_before_synced_check)
+        logger.debug("Pausing %s seconds before checking if unblocked nodes " \
+                     "are synced...", pause_before_synced_check)
         # TODO: Use a count down timer? May be nice for those who are running
         #       experiments manually.
         sleep(int(pause_before_synced_check))
-        logger.debug("Checking if unblocked nodes are synced and report %s transactions...", transactions)
-        return nodes_are_caught_up(selected, genesis_file, transactions, did,
-                                   seed, wallet_name, wallet_key, pool,
-                                   ssh_config_file)
+        logger.debug("Checking if unblocked nodes are synced and report %s " \
+                     "transactions...", transactions)
+        return nodes_are_caught_up(selected, genesis_file, transactions,
+                                   did=did, seed=seed, wallet_name=wallet_name,
+                                   wallet_key=wallet_key, pool=pool,
+                                   timeout=timeout,
+                                   ssh_config_file=ssh_config_file)
     return True
 
 
-def unblock_node_port_random(genesis_file, transactions=None,
-                             pause_before_synced_check=None, best_effort=True,
-                             did=DEFAULT_CHAOS_DID,
-                             seed=DEFAULT_CHAOS_SEED,
-                             wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                             wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                             pool=DEFAULT_CHAOS_POOL,
-                             ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def unblock_node_port_random(genesis_file: str,
+    transactions: Union[str,int] = None,
+    pause_before_synced_check: Union[str,int] = None, best_effort: bool = True,
+    did: str = DEFAULT_CHAOS_DID, seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Unblock nodes randomly selected by calling block_node_port_random
+
+    State file "block_node_port_random" located in the chaos temp dir (see
+    get_chaos_temp_dir for details) is shared with the following functions
+    block_node_port_random
+    unblock_node_port_random
+    unblocked_nodes_are_caught_up
+
+    Because the aforementioned functions share a state file, they are intended
+    to be used together. The typical/suggested workflow would be:
+
+    1. Block the node port on some nodes (block_node_port_random)
+    2. Optionally do something while node ports are blocked (i.e. generate load)
+    3. Unblock node port on the set of nodes selected in step 1 above.
+    4. Optionally do something while nodes are catching up.
+    5. Check if nodes unblocked in step 3 above are caught up.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param transactions: Expected number of transactions on the domain ledger
+        after catchup has completed.
+        Optional. (Default: None)
+    :type transactions: Union[str,int]
+    :param pause_before_synced_check: Seconds to pause before checking if a node
+        is synced.
+        Optional. (Default: None)
+    :type pause_before_synced_check: Union[str,int]
+    :param best_effort: Attempt to unblock ports blocked when calling
+        block_node_port_random. Do not fail if the block_node_port_random state
+        file does not exist, if an error/exception is encountered while
+        unblocking a node port on any of the nodes, or if fewer than expected
+        nodes were unblocked.
+        Optional. (Default: True)
+    :type best_effort: bool
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
+
     # TODO: Use the traffic shaper tool Kelly is using.
     # http://www.uponmyshoulder.com/blog/2013/simulating-bad-network-conditions-on-linux/
     #
@@ -369,7 +756,8 @@ def unblock_node_port_random(genesis_file, transactions=None,
         with open(join(output_dir, "block_node_port_random"), "r") as f:
             blocked_ports = json.load(f)
     except Exception as e:
-        # Do not fail on exceptions like FileNotFoundError if best_effort is True
+        # Do not fail on exceptions like FileNotFoundError if best_effort is
+        # True
         if best_effort:
             return True
         else:
@@ -385,7 +773,8 @@ def unblock_node_port_random(genesis_file, transactions=None,
     for node in selected:
         logger.debug("node alias to unblock: %s", node)
         try:
-            if unblock_port_by_node_name(node, str(blocked_ports[node]), ssh_config_file):
+            if unblock_port_by_node_name(node, str(blocked_ports[node]),
+                                         ssh_config_file):
                 unblocked += 1
             else:
                 still_blocked_ports[node] = blocked_ports[node]
@@ -394,26 +783,94 @@ def unblock_node_port_random(genesis_file, transactions=None,
                 pass
         tried_to_unblock += 1
 
-    logger.debug("unblocked: %s -- tried_to_unblock: %s -- len-aliases: %s", unblocked, tried_to_unblock, len(selected))
+    logger.debug("unblocked: %s -- tried_to_unblock: %s -- len-aliases: %s",
+                 unblocked, tried_to_unblock, len(selected))
     if not best_effort and unblocked < len(selected):
         return False
 
-    # Only check if resurrected nodes are caught up if both a pause and number of
-    # transactions are given.
+    # Only check if resurrected nodes are caught up if both a pause and number
+    # of transactions are given.
     if pause_before_synced_check and transactions:
-        logger.debug("Pausing %s seconds before checking if unblocked nodes are synced...", pause_before_synced_check)
+        logger.debug("Pausing %s seconds before checking if unblocked nodes " \
+                     "are synced...", pause_before_synced_check)
         # TODO: Use a count down timer? May be nice for those who are running
         #       experiments manually.
         sleep(int(pause_before_synced_check))
-        logger.debug("Checking if unblocked nodes are synced and report %s transactions...", transactions)
+        logger.debug("Checking if unblocked nodes are synced and report %s " \
+                     "transactions...", transactions)
         return unblocked_nodes_are_caught_up(genesis_file, transactions, did,
-                                             seed, wallet_name, wallet_key, pool,
-                                             ssh_config_file)
+                                             seed, wallet_name, wallet_key,
+                                             pool, ssh_config_file)
     return True
 
 
-def kill_random_nodes(genesis_file, count,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def kill_random_nodes(genesis_file: str, count = Union[str,int],
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Randomly select and kill the indy-node process on a given number of nodes.
+
+    State file "nodes_random" located in the chaos temp dir (see
+    get_chaos_temp_dir for details) is shared with the following functions
+    kill_random_nodes
+    ressurect_random_nodes
+    nodes_are_caught_up
+
+    Because the aforementioned functions share a state file, they are intended
+    to be used together. The typical/suggested workflow would be:
+
+    1. Randomly select and kill the indy-node process on a given number of nodes
+       (kill_random_nodes)
+    2. Optionally do something while nodes are dead (i.e. generate load)
+    3. Resurrect the set of nodes selected in step 1 above.
+    4. Optionally do something while nodes are catching up.
+    5. Check if nodes resurrected in step 3 above are caught up.
+       (nodes_are_caught_up)
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param count: The number of nodes to kill. If the count exceeds the number
+        of nodes defined in the genesis file, all nodes will be killed.
+        Required.
+    :type count: Union[str,int]
+    :param pause_before_synced_check: Seconds to pause before checking if a node
+        is synced.
+        Optional. (Default: None)
+    :type pause_before_synced_check: Union[str,int]
+    :param best_effort: Attempt to unblock ports blocked when calling
+        block_node_port_random. Do not fail if the block_node_port_random state
+        file does not exist, if an error/exception is encountered while
+        unblocking a node port on any of the nodes, or if fewer than expected
+        nodes were unblocked.
+        Optional. (Default: True)
+    :type best_effort: bool
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     selected = get_random_nodes(genesis_file, count)
     tried_to_kill = 0
     are_dead = 0
@@ -424,27 +881,94 @@ def kill_random_nodes(genesis_file, count,
             are_dead += 1
         tried_to_kill += 1
 
-    logger.debug("are_dead: %s -- count: %s -- tried_to_kill: %s -- len-aliases: %s", are_dead, count, tried_to_kill, number_of_aliases)
+    logger.debug("are_dead: %s -- count: %s -- tried_to_kill: %s -- " \
+                 "len-aliases: %s", are_dead, count, tried_to_kill,
+                 number_of_aliases)
     if are_dead < int(count):
         return False
 
     output_dir = get_chaos_temp_dir()
-    # Write out the killed nodes list to the temp output_dir created for this experiment
+    # Write out the killed nodes list to the temp output_dir created for this
+    # experiment
     with open(join(output_dir, "nodes_random"), "w") as f:
         f.write(json.dumps(selected))
 
     return True
 
 
-def resurrect_random_nodes(genesis_file, transactions=None,
-                           pause_before_synced_check=None, best_effort=True,
-                           did=DEFAULT_CHAOS_DID,
-                           seed=DEFAULT_CHAOS_SEED,
-                           wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                           wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                           pool=DEFAULT_CHAOS_POOL,
-                           timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
-                           ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def resurrect_random_nodes(genesis_file: str,
+    transactions: Union[str,int] = None,
+    pause_before_synced_check: Union[str,int] = None, best_effort: bool = True,
+    did: str = DEFAULT_CHAOS_DID, seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Start the indy-node process on nodes that were killed by calling
+    kill_random_nodes.
+
+    State file "nodes_random" located in the chaos temp dir (see
+    get_chaos_temp_dir for details) is shared with the following functions
+    kill_random_nodes
+    ressurect_random_nodes
+    nodes_are_caught_up
+
+    Because the aforementioned functions share a state file, they are intended
+    to be used together. The typical/suggested workflow would be:
+
+    1. Randomly select and kill the indy-node process on a given number of nodes
+       (kill_random_nodes)
+    2. Optionally do something while nodes are dead (i.e. generate load)
+    3. Resurrect the set of nodes selected in step 1 above.
+    4. Optionally do something while nodes are catching up.
+    5. Check if nodes resurrected in step 3 above are caught up.
+       (nodes_are_caught_up)
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param transactions: Expected number of transactions on the domain ledger
+        after catchup has completed.
+        Optional. (Default: None)
+    :type transactions: Union[str,int]
+    :param pause_before_synced_check: Seconds to pause before checking if a node
+        is synced.
+        Optional. (Default: None)
+    :type pause_before_synced_check: Union[str,int]
+    :param best_effort: Attempt to unblock ports blocked when calling
+        block_node_port_random. Do not fail if the block_node_port_random state
+        file does not exist, if an error/exception is encountered while
+        unblocking a node port on any of the nodes, or if fewer than expected
+        nodes were unblocked.
+        Optional. (Default: True)
+    :type best_effort: bool
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     # This function assumes that kill_random_nodes has been called and a
     # "nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
@@ -454,7 +978,8 @@ def resurrect_random_nodes(genesis_file, transactions=None,
         with open(join(output_dir, "nodes_random"), "r") as f:
             selected = json.load(f)
     except Exception as e:
-        # Do not fail on exceptions like FileNotFoundError if best_effort is True
+        # Do not fail on exceptions like FileNotFoundError if best_effort is
+        # True
         if best_effort:
             return True
         else:
@@ -464,7 +989,7 @@ def resurrect_random_nodes(genesis_file, transactions=None,
     tried_to_resurrect = 0
     # Keep track of nodes/ports that could not be resurrected either by the
     # experiment's method or rollback segments and write it back to
-    # block_node_port_random in the experiement's temp directory
+    # nodes_random in the experiement's temp directory
     still_killed_nodes = []
     for node in selected:
         logger.debug("node alias to resurrect: %s", node)
@@ -478,7 +1003,8 @@ def resurrect_random_nodes(genesis_file, transactions=None,
                 pass
         tried_to_resurrect += 1
 
-    logger.debug("resurrected: %s -- tried_to_resurrect: %s -- len-aliases: %s", resurrected, tried_to_resurrect, len(selected))
+    logger.debug("resurrected: %s -- tried_to_resurrect: %s -- len-aliases: %s",
+                 resurrected, tried_to_resurrect, len(selected))
     if not best_effort and resurrected < len(selected):
         return False
 
@@ -488,60 +1014,131 @@ def resurrect_random_nodes(genesis_file, transactions=None,
     with open(join(output_dir, "nodes_random"), "w") as f:
         f.write(json.dumps(still_killed_nodes))
 
-    # Only check if resurrected nodes are caught up if both a pause and number of
-    # transactions are given.
+    # Only check if resurrected nodes are caught up if both a pause and number
+    # of transactions are given.
     if pause_before_synced_check and transactions:
-        logger.debug("Pausing %s seconds before checking if resurrected nodes are synced...", pause_before_synced_check)
+        logger.debug("Pausing %s seconds before checking if resurrected nodes" \
+                     " are synced...", pause_before_synced_check)
         # TODO: Use a count down timer? May be nice for those who are running
         #       experiments manually.
         sleep(int(pause_before_synced_check))
-        logger.debug("Checking if resurrected nodes are synced and report %s transactions...", transactions)
-        return nodes_are_caught_up(selected, genesis_file, transactions, did=did,
-                                   seed=seed, wallet_name=wallet_name,
+        logger.debug("Checking if resurrected nodes are synced and report %s " \
+                     "transactions...", transactions)
+        return nodes_are_caught_up(selected, genesis_file, transactions,
+                                   did=did, seed=seed, wallet_name=wallet_name,
                                    wallet_key=wallet_key, pool=pool,
                                    timeout=timeout,
                                    ssh_config_file=ssh_config_file)
     return True
 
 
-def nodes_are_caught_up(nodes, genesis_file, transactions, 
-                        did=DEFAULT_CHAOS_DID,
-                        seed=DEFAULT_CHAOS_SEED,
-                        wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                        wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                        pool=DEFAULT_CHAOS_POOL,
-                        timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
-                        ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def nodes_are_caught_up(nodes: List[str], genesis_file: str,
+    transactions: Union[str,int] = None, did: str = DEFAULT_CHAOS_DID,
+    seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Check if nodes resurrected by calling resurrect_random_nodes are caught up.
+
+    State file "nodes_random" located in the chaos temp dir (see
+    get_chaos_temp_dir for details) is shared with the following functions
+    kill_random_nodes
+    ressurect_random_nodes
+    nodes_are_caught_up
+
+    Because the aforementioned functions share a state file, they are intended
+    to be used together. The typical/suggested workflow would be:
+
+    1. Randomly select and kill the indy-node process on a given number of nodes
+       (kill_random_nodes)
+    2. Optionally do something while nodes are dead (i.e. generate load)
+    3. Resurrect the set of nodes selected in step 1 above.
+    4. Optionally do something while nodes are catching up.
+    5. Check if nodes resurrected in step 3 above are caught up.
+       (nodes_are_caught_up)
+
+    :param nodes: The list of node names/aliases to check
+    :type nodes: List[str]
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param transactions: Expected number of transactions on the domain ledger
+        after catchup has completed.
+        Optional. (Default: None)
+    :type transactions: Union[str,int]
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     # TODO: add support for all ledgers, not just domain ledger.
     #
     # This function assumes that kill_random_nodes has been called and a
     # "nodes_random" file has been created in a temporary directory
     # created using rules defined by get_chaos_temp_dir()
     # 1. Get validator info from all nodes
-    get_validator_info(genesis_file, did=did, seed=seed, wallet_name=wallet_name,
-                       wallet_key=wallet_key, pool=pool, timeout=timeout,
+    get_validator_info(genesis_file, did=did, seed=seed,
+                       wallet_name=wallet_name, wallet_key=wallet_key,
+                       pool=pool, timeout=timeout,
                        ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
 
     matching = []
     not_matching = {}
     for alias in nodes:
-        logger.debug("Checking if node %s has %s catchup transactions", alias, transactions)
+        logger.debug("Checking if node %s has %s catchup transactions", alias,
+                     transactions)
         validator_info = join(output_dir, "{}-validator-info".format(alias))
         try:
             with open(validator_info, 'r') as f:
                 node_info = json.load(f)
 
+            # Get the number of transactions added during catchup
+            txns_in_catchup = None
+            # Get the catchup status
+            catchup_status = None
             if 'data' in node_info:
-                catchup_transactions = node_info['data']['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
-                ledger_status = node_info['data']['Node_info']['Catchup_status']['Ledger_statuses']['1']
+                # Shorten things to less than 80 characters per line
+                data_node_info = node_info['data']['Node_info']
+                catchup_status = data_node_info['Catchup_status']
+                txns_in_catchup = catchup_status['Number_txns_in_catchup']
             else:
-                catchup_transactions = node_info['Node_info']['Catchup_status']['Number_txns_in_catchup']['1']
-                ledger_status = node_info['Node_info']['Catchup_status']['Ledger_statuses']['1']
+                # Shorten things to less than 80 characters per line
+                catchup_status = node_info['Node_info']['Catchup_status']
+                txns_in_catchup = catchup_status['Number_txns_in_catchup']
+            # Get the number of catchup transactions
+            catchup_transactions = txns_in_catchup['1']
+            # Get the domain ledger status
+            ledger_status = catchup_status['Ledger_statuses']['1']
         except FileNotFoundError:
-            logger.info("Setting number of catchup transactions to Unknown for alias {}".format(alias))
+            logger.info("Setting number of catchup transactions to Unknown " \
+                        "for alias {}".format(alias))
             catchup_transactions = "Unknown"
-            logger.info("Setting ledger status to Unknown for alias {}".format(alias))
+            logger.info("Setting ledger status to Unknown for alias {}".format(
+                        alias))
             ledger_status = "Unknown"
         except Exception as e:
             logger.error("Failed to load validator info for alias %s", alias)
@@ -549,7 +1146,8 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
             return False
 
         logger.info("%s's ledger status in catchup is %s", alias, ledger_status)
-        logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
+        logger.info("%s's number of transactions in catchup is %s", alias,
+                    catchup_transactions)
 
         transaction_counts = transactions.split(" to ")
         transaction_counts_len = len(transaction_counts)
@@ -562,23 +1160,44 @@ def nodes_are_caught_up(nodes, genesis_file, transactions,
 
     if len(not_matching.keys()) != 0:
         for node in not_matching.keys():
-            logger.error("Node %s failed to catchup. Reported %s transactions. Should have been %s", node, str(catchup_transactions), transactions)
-            logger.info("%s's number of transactions in catchup is %s", alias, catchup_transactions)
+            logger.error("Node %s failed to catchup. Reported %s " \
+                         "transactions. Should have been %s", node,
+                         str(catchup_transactions), transactions)
+            logger.info("%s's number of transactions in catchup is %s", alias,
+                        catchup_transactions)
         return False
 
     return True
 
 
-def ensure_nodes_up(genesis_file, count,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    logger.debug("genesis_file: %s -- count: %s -- ssh_config_file: %s", genesis_file, count, ssh_config_file)
+def ensure_nodes_up(genesis_file: str, count = Union[str,int],
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Ensure at least a given number of nodes are up.
+
+    True is returned if at least 'count' number of nodes are started. Otherwise,
+    False is returned. For example, if the count is greater than the number of
+    nodes defined in the genesis file, ensure_nodes_up will return False.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param count: Number of nodes on which to ensure the indy-node service is
+        running.
+        Required.
+    :type count: Union[str,int]
+    :return: bool
+    """
+    logger.debug("genesis_file: %s -- count: %s -- ssh_config_file: %s",
+                 genesis_file, count, ssh_config_file)
     # 1. Get all node aliases
     aliases = get_aliases(genesis_file)
     logger.debug(aliases)
 
     executor = FabricExecutor(ssh_config_file=expanduser(ssh_config_file))
 
-    # 2. Start 'count' nodes. It is okay to count a node if the service is already alive/started
+    # 2. Start 'count' nodes. It is okay to count a node if the service is
+    #    already alive/started
     tried_to_start = 0
     are_alive = 0
     number_of_aliases = len(aliases)
@@ -590,21 +1209,65 @@ def ensure_nodes_up(genesis_file, count,
             are_alive += 1
         tried_to_start += 1
 
-    logger.debug("are_alive: %s -- count: %s -- tried_to_start: %s -- len-aliases: %s", are_alive, count, tried_to_start, number_of_aliases)
+    logger.debug("are_alive: %s -- count: %s -- tried_to_start: %s -- " \
+                 "len-aliases: %s", are_alive, count, tried_to_start,
+                 number_of_aliases)
     if are_alive < int(count):
         return False
 
     return True
 
-def set_node_services_from_cli(genesis_file, alias, alias_did,
-                               did=DEFAULT_CHAOS_DID,
-                               services=DEFAULT_CHAOS_NODE_SERVICES,
-                               seed=DEFAULT_CHAOS_SEED,
-                               wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                               wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                               pool=DEFAULT_CHAOS_POOL,
-                               timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                               ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def set_node_services_from_cli(genesis_file: str, alias: str, alias_did: str,
+    seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Set a node's 'services' attribute using indy-cli
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
+    :type services: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param timeout: How long indy-cli can take to perform the operation before
+        timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
+
     # TODO: Decide if this should be a send_node_transaction abstraction instead
     #       of specifically for changing a nodes "services" attribute.
     '''
@@ -658,7 +1321,8 @@ def set_node_services_from_cli(genesis_file, alias, alias_did,
     with open(indy_cli_command_batch, "w") as f:
         f.write("pool create {} gen_txn_file={}\n".format(pool, genesis_file))
         f.write("exit")
-    create_pool = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+    create_pool = subprocess.check_output(["indy-cli", indy_cli_command_batch],
+        stderr=subprocess.STDOUT, shell=False)
 
     # Wallet creation
     indy_cli_command_batch = join(output_dir, "indy-cli-create-wallet.in")
@@ -668,7 +1332,9 @@ def set_node_services_from_cli(genesis_file, alias, alias_did,
         else:
           f.write("wallet create {} key\n".format(wallet_name))
         f.write("exit")
-    create_wallet = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+    create_wallet = subprocess.check_output(
+        ["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT,
+        shell=False)
 
     # DID creation
     if seed:
@@ -680,7 +1346,9 @@ def set_node_services_from_cli(genesis_file, alias, alias_did,
               f.write("wallet open {} key\n".format(wallet_name))
             f.write("did new seed={}\n".format(seed))
             f.write("exit")
-        create_did = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, shell=False)
+        create_did = subprocess.check_output(
+            ["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT,
+            shell=False)
 
     # Get the node's DID from the genesis transaction file. The DID can be found
     # in the txn.data.dest attribute where txn.data.data.alias == alias passed
@@ -693,24 +1361,69 @@ def set_node_services_from_cli(genesis_file, alias, alias_did,
           f.write("wallet open {} key\n".format(wallet_name))
         f.write("did use {}\n".format(did))
         f.write("pool connect {}\n".format(pool))
-        f.write("ledger node target={} alias={} services={}\n".format(alias_did, alias, services))
+        f.write("ledger node target={} alias={} services={}\n".format(alias_did,
+                alias, services))
         f.write("exit")
-    demote_node = subprocess.check_output(["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT, timeout=int(timeout), shell=False)
+    demote_node = subprocess.check_output(["indy-cli", indy_cli_command_batch],
+        stderr=subprocess.STDOUT, timeout=int(timeout), shell=False)
+
     return True
 
-def set_services_by_node_name(genesis_file, alias,
-                              services=DEFAULT_CHAOS_NODE_SERVICES,
-                              did=DEFAULT_CHAOS_DID,
-                              seed=DEFAULT_CHAOS_SEED,
-                              wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                              wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                              pool=DEFAULT_CHAOS_POOL,
-                              timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                              ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def set_services_by_node_name(genesis_file: str, alias: str,
+    did: str, services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Change a node's services
-    NOTE: Possible pure-python solution: https://github.com/hyperledger/indy-plenum/blob/62c8f47c20a1d204f2e90bb85f84cbf02c2b0b48/plenum/test/pool_transactions/helper.py#L413-L430
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param services: The node's services. Must be one of the following:
+        "VALIDATOR", "OBSERVER", ""
+    :type services: str
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
+    :type services: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param timeout: How long indy-cli can take to perform the operation before
+        timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
+    # NOTE: Possible pure-python solution: https://github.com/hyperledger/indy-plenum/blob/62c8f47c20a1d204f2e90bb85f84cbf02c2b0b48/plenum/test/pool_transactions/helper.py#L413-L430
     logger.debug("Setting %s's services to >%s<", alias, services)
     logger.debug("Get %s's DID from genesis_file %s", alias, genesis_file)
     node_genesis_json = get_info_by_node_name(genesis_file, alias,
@@ -726,17 +1439,62 @@ def set_services_by_node_name(genesis_file, alias,
                                       timeout=timeout,
                                       ssh_config_file=ssh_config_file)
 
-def demote_by_node_name(genesis_file, alias,
-                        services=DEFAULT_CHAOS_NODE_SERVICES,
-                        did=DEFAULT_CHAOS_DID,
-                        seed=DEFAULT_CHAOS_SEED,
-                        wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                        wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                        pool=DEFAULT_CHAOS_POOL,
-                        timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                        ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def demote_by_node_name(genesis_file: str, alias: str,
+    did: str, services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
-    Demote a node by setting it's "services" attribute to and empty list/string.
+    Demote a node by setting it's "services" attribute to an empty list/string.
+
+    demote_by_node_name and promote_by_node_name are abstractions on top of
+    set_services_by_node_name
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param services: The node's services. Must be one of the following:
+        "VALIDATOR", "OBSERVER", ""
+    :type services: str
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
+    :type services: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param timeout: How long indy-cli can take to perform the operation before
+        timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     logger.debug("Demoting {}".format(alias))
     return set_services_by_node_name(genesis_file, alias, services="", did=did,
@@ -745,21 +1503,35 @@ def demote_by_node_name(genesis_file, alias,
                                      timeout=timeout,
                                      ssh_config_file=ssh_config_file)
 
-def restart_node(genesis_file, alias,
-                 timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                 stop_strategy=StopStrategy.SERVICE.value,
-                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def restart_node(genesis_file: str, alias: str,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    stop_strategy: int = StopStrategy.SERVICE.value,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Restart a node
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-      alias - Node to restart. Must be a name/alias found in the genesis_file
-    Keyword Arguments (optional):
-      timeout - Timeout in seconds.
-      stop_strategy - See chaosindy.common.StopStrategy for options. Defaults to
-                      StopStrategy.SERVICE.value
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param timeout: How long to perform the operation before timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param stop_strategy: A stop strategy defined by the
+        chaosindy.common.StopStrategy enum. Examples include:
+        StopStrategy.SERVICE - Stop the indy-node service (graceful)
+        StopStrategy.PORT - Block the node port
+        StopStrategy.DEMOTE - Demote the node
+        StopStrategy.KILL - Kill the indy-node service (ungraceful)
+    :type stop_strategy: int
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     logger.debug("Restarting {}".format(alias))
     config = {
@@ -779,18 +1551,63 @@ def restart_node(genesis_file, alias,
 
     return status
 
-def promote_by_node_name(genesis_file, alias,
-                         services=DEFAULT_CHAOS_NODE_SERVICES,
-                         did=DEFAULT_CHAOS_DID,
-                         seed=DEFAULT_CHAOS_SEED,
-                         wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                         wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                         pool=DEFAULT_CHAOS_POOL,
-                         timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                         ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def promote_by_node_name(genesis_file: str, alias: str,
+    did: str, services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    seed: str = DEFAULT_CHAOS_SEED,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
-    Promote a node by setting it's "services" attribute to and empty
+    Promote a node by setting it's "services" attribute to an empty
     list/string.
+
+    promote_by_node_name and demote_by_node_name are abstractions on top of
+    set_services_by_node_name
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param services: The node's services. Must be one of the following:
+        "VALIDATOR", "OBSERVER", ""
+    :type services: str
+    :param did: A steward or trustee DID. A did OR a seed is required, but not
+        both. The did will be used if both are given. Needed to get validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
+    :type did: str
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
+    :type services: str
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param timeout: How long indy-cli can take to perform the operation before
+        timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     logger.debug("Promoting {}".format(alias))
     status = set_services_by_node_name(genesis_file, alias,
@@ -820,13 +1637,40 @@ def promote_by_node_name(genesis_file, alias,
 
     return status
 
-def stop_by_strategy(genesis_file, alias, stop_strategy,
-                     timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                     ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def stop_by_strategy(genesis_file: str, alias: str, stop_strategy: int,
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> Union[bool,Dict[str,str]]:
     """
-    Assuptions:
-        - A <alias>-validator-info file contains validator info for the given
-          alias
+    Remove a node from participating in consensus
+
+    Returns False if it fails. Otherwise, a dictionary containing information
+    required at a later time to rollback changes. The caller is expected to
+    perform a predicate check on the returned value.
+
+    Call start_by_strategy to undo what is done by stop_by_strategy.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param stop_strategy: A stop strategy defined by the
+        chaosindy.common.StopStrategy enum. Examples include:
+        StopStrategy.SERVICE - Stop the indy-node service (graceful)
+        StopStrategy.PORT - Block the node port
+        StopStrategy.DEMOTE - Demote the node
+        StopStrategy.KILL - Kill the indy-node service (ungraceful)
+    :type stop_strategy: int
+    :param timeout: How long to perform the operation before timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: Union[bool, Dict[str,str]]
     """
     output_dir = get_chaos_temp_dir()
     succeeded = False
@@ -842,9 +1686,10 @@ def stop_by_strategy(genesis_file, alias, stop_strategy,
     elif stop_strategy == StopStrategy.PORT.value:
         with open("{}/{}-validator-info".format(output_dir, alias), 'r') as vif:
             validator_info = json.load(vif)
+            node_info = validator_info['Node_info']
             # "stop/block" inbound messages from clients and other nodes
-            details['client_port'] = str(validator_info['Node_info']['Client_port'])
-            details['node_port'] = str(validator_info['Node_info']['Node_port'])
+            details['client_port'] = str(node_info['Client_port'])
+            details['node_port'] = str(node_info['Node_port'])
             succeeded = block_port_by_node_name(alias, details['client_port'],
                 ssh_config_file=ssh_config_file)
             succeeded = block_port_by_node_name(alias, details['node_port'],
@@ -871,10 +1716,46 @@ def stop_by_strategy(genesis_file, alias, stop_strategy,
         return False
     return details
 
+def start_by_strategy(genesis_file: str, alias: str,
+    details: Dict[str,str],
+    timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Restore a node to participating in consensus
 
-def start_by_strategy(genesis_file, alias, details,
-                      timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                      ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+    start_by_strategy is intended to undo what was done by stop_by_strategy.
+    See stop_by_stragegy.
+
+    The strategy used when calling stop_by_stragey is expected to be used again
+    when calling start_by_stragey in order to undo what what done by
+    stop_by_strategy.
+
+    Returns False if it fails. Otherwise, a dictionary containing information
+    required at a later time to rollback changes. The caller is expected to
+    perform a predicate check on the returned value.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param alias: The node name/alias for which to set the 'services' attribute
+    :type alias: str
+    :param stop_strategy: A stop strategy defined by the
+        chaosindy.common.StopStrategy enum. Examples include:
+        StopStrategy.SERVICE - Stop the indy-node service (graceful)
+        StopStrategy.PORT - Block the node port
+        StopStrategy.DEMOTE - Demote the node
+        StopStrategy.KILL - Kill the indy-node service (ungraceful)
+    :type stop_strategy: int
+    :param timeout: How long to perform the operation before timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     succeeded = False
     operation = "start/unblock/promote"
     stop_strategy = details.get('stop_strategy', None)
@@ -911,24 +1792,31 @@ def start_by_strategy(genesis_file, alias, details,
     return True
 
 
-def get_primary(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE,
-                compile_stats=True):
+def get_primary(genesis_file: str,
+                ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE,
+                compile_stats: bool = True) -> str:
     """
     Return the alias of the primary from the 'primaries' state file.
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
-      compile_stats - Set to True to create/recreate the 'primaries' state file.
-                      Set to False if the last computed "current_primary" in the
-                      'primaries' state file is sufficient. get_primary MUST be
-                      called at least once with compile_stats=True before
-                      calling it with compile_stats=False. Otherwise, the
-                      'primaries' state file will not exist, resulting in a
-                      stacktrace. By design (in context to chaos experiments),
-                      the stacktrace (File Not Found) tells you your experiment
-                      is not written correctly.
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :param compile_stats: Set to True to create/recreate the 'primaries' state
+        file. Set to False if the last computed "current_primary" in the
+        'primaries' state file is sufficient. get_primary MUST be called at
+        least once with compile_stats=True before calling it with
+        compile_stats=False. Otherwise, the 'primaries' state file will not
+        exist, resulting in a stacktrace. By design (in context to chaos
+        experiments), the stacktrace (File Not Found) tells you your experiment
+        is not written correctly.
+        Optional. (Default: True)
+    :type compile_stats: bool
+    :return: str
+
     """
     primary = None
     if compile_stats:
@@ -942,12 +1830,13 @@ def get_primary(genesis_file, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE,
     return primary
 
 
-def stop_primary(genesis_file, stop_strategy=StopStrategy.SERVICE.value,
-                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def stop_primary(genesis_file: str,
+                 stop_strategy: int = StopStrategy.SERVICE.value,
+                 ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Detect and stop the node playing the role of 'primary'
-    Store the name/alias of the primary in a 'stopped_primary' file (JSON doc)
-    within the experiment's chaos temp dir.
+    Store the name/alias of the primary in a 'stopped_primary' state file
+    (JSON doc) within the experiment's chaos temp dir.
 
     start_stopped_primary_after_view_change may be called after calling
     stop_primary if the desired result is to start the old primary after a view
@@ -957,12 +1846,22 @@ def stop_primary(genesis_file, stop_strategy=StopStrategy.SERVICE.value,
     desired result is to start the old primary without considering the state of
     a viewchange.
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      stop_strategy - How should the primary be stopped? See StopStrategy in
-                      chaosindy.common for options.
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param stop_strategy: A stop strategy defined by the
+        chaosindy.common.StopStrategy enum. Examples include:
+        StopStrategy.SERVICE - Stop the indy-node service (graceful)
+        StopStrategy.PORT - Block the node port
+        StopStrategy.DEMOTE - Demote the node
+        StopStrategy.KILL - Kill the indy-node service (ungraceful)
+        Optional. (Default: chaosindy.common.StopStrategy.SERVICE.value)
+    :type stop_strategy: int
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     primary = get_primary(genesis_file, compile_stats=True,
                           ssh_config_file=ssh_config_file)
@@ -986,14 +1885,35 @@ def stop_primary(genesis_file, stop_strategy=StopStrategy.SERVICE.value,
     return False
 
 
-def wait_for_view_change(genesis_file,
-                         previous_primary=None,
-                         max_checks_for_primary=6,
-                         sleep_between_checks=10,
-                         ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def wait_for_view_change(genesis_file: str,
+    previous_primary: str = None, max_checks_for_primary: int = 6,
+    sleep_between_checks: int = 10,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> int:
     """
-    Wait until view change is complete. When the primary is not the
-    stopped_primary a viewchange has progressed far enough to achive consensus.
+    Wait until view change is complete.
+
+    When the primary is not the previous_primary a viewchange has progressed far
+    enough to achive consensus.
+
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param previous_primary: The previous known primary
+        Optional. (Default: None)
+    :type previous_primary: str
+    :param max_checks_for_primary: How many times to poll validator info for
+        primary information.
+        Optional. (Default: 6)
+    :type max_checks_for_primary: int
+    :param sleep_between_checks: How long (in seconds) to pause/sleep between
+        polling validator info.
+        Optional. (Default: 10)
+    :type sleep_between_checks: int
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: int
     """
     tries = 0
     while tries < max_checks_for_primary:
@@ -1008,15 +1928,17 @@ def wait_for_view_change(genesis_file,
             logger.debug("View change detected!")
             break;
         else:
-            logger.debug("View change not yet complete. Sleeping for {} seconds...".format(sleep_between_checks))
+            logger.debug("View change not yet complete. Sleeping for {}" \
+                         " seconds...".format(sleep_between_checks))
             sleep(sleep_between_checks)
             tries += 1
     return tries
 
 
-def start_stopped_primary_after_view_change(genesis_file,
-    max_checks_for_primary=6, sleep_between_checks=10,
-    start_backup_primaries=True, ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def start_stopped_primary_after_view_change(genesis_file: str,
+    max_checks_for_primary: int = 6, sleep_between_checks: int = 10,
+    start_backup_primaries: bool = True,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Start the node stopped by a call to stop_primary. When the primary is
     stopped, the pool will perform a viewchange. This function will not start
@@ -1039,16 +1961,27 @@ def start_stopped_primary_after_view_change(genesis_file,
         start_backup_primaries kwarg is True, the stopped backup primaries
         should be started.
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      max_checks_for_primary - number of times to call get_primary to check
-                               which node is primary.
-      sleep_between_checks - number of seconds between calls checks for which
-                             node is primary.
-      start_backup_primaries - Start stopped replicas before starting stopped
-                               primary?
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param max_checks_for_primary: How many times to poll validator info for
+        primary information.
+        Optional. (Default: 6)
+    :type max_checks_for_primary: int
+    :param sleep_between_checks: How long (in seconds) to pause/sleep between
+        polling validator info.
+        Optional. (Default: 10)
+    :type sleep_between_checks: int
+    :param start_backup_primaries: If the state file indicates that backup
+        primaries (replicas) have been stopped, should backup primaries be
+        started?
+        Optional. (Default: True)
+    :type start_backup_primaries: bool
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     output_dir = get_chaos_temp_dir()
     stopped_primary_dict = {}
@@ -1093,8 +2026,10 @@ def start_stopped_primary_after_view_change(genesis_file,
                                      ssh_config_file=ssh_config_file)
     return True
 
-def start_stopped_primary(genesis_file, start_backup_primaries=True,
-                          ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+
+def start_stopped_primary(genesis_file: str,
+    start_backup_primaries: bool = True,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Start the node stopped by a call to stop_primary. When the primary is
     stopped, the pool will perform a viewchange. This function starts the
@@ -1103,12 +2038,19 @@ def start_stopped_primary(genesis_file, start_backup_primaries=True,
     By default, if an experiment stops replica nodes (a.k.a. backup primaries),
     the stopped replicas will be started before the stopped primary is started.
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      start_backup_primaries - Start stopped replicas before starting stopped
-                               primary?
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param start_backup_primaries: If the state file indicates that backup
+        primaries (replicas) have been stopped, should backup primaries be
+        started?
+        Optional. (Default: True)
+    :type start_backup_primaries: bool
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     output_dir = get_chaos_temp_dir()
     stopped_primary_dict = {}
@@ -1144,12 +2086,28 @@ def start_stopped_primary(genesis_file, start_backup_primaries=True,
     return False
 
 
-def stop_f_backup_primaries_before_primary(genesis_file, f=None,
-    stop_strategy=StopStrategy.SERVICE.value,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def stop_f_backup_primaries_before_primary(genesis_file: str,
+    f: Union[str, int] = None, stop_strategy: int = StopStrategy.SERVICE.value,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
-    Stop exactly a certain number of backup primaries. Defaults to cluster's f
-    value or number of replicas, whichever is less.
+    Stop a given number of backup primaries.
+
+    When not given, f Defaults to the cluster's f_value from validator-info.
+
+    Creates a state "stopped_primary" state file. The following functions also
+    create a "stopped_primary" state file. Do not use both
+    stop_f_backup_primaries_before_primary with any of the following in your
+    experiments unless you refactor code to allow you to do so w/o causing
+    undesired side-effects:
+
+    stop_primary
+
+    The following read data from the "stopped_primary" state file and may be
+    useful in combination with stop_f_backup_primaries_before_primary:
+
+    start_stopped_primary_after_view_change
+    start_stopped_primary
+
     TODO: Add selection_strategy? selection_strategy - How to select which <f>
           backup primaries to stop. Options defined by SelectionStrategy in
           chaosindy.common
@@ -1160,15 +2118,26 @@ def stop_f_backup_primaries_before_primary(genesis_file, f=None,
           will not work. Perhaps the common module can be enhanced to support
           get_state, set_state abstractions?
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      f - This is typically the number of nodes that can fail w/o losing
-          consensus and can be found in validator-info. It is exposed as a
-          parameter as a means for experimentation.
-      stop_strategy - How should backup primaries and the primary be stopped?
-                      See StopStrategy in chaosindy.common for options.
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param f: This is typically the number of nodes that can fail w/o losing
+        consensus and can be found in validator-info. It is exposed as a
+        parameter as a means for experimentation.
+    :type f: Union[str,int]
+    :param stop_strategy: A stop strategy defined by the
+        chaosindy.common.StopStrategy enum. Examples include:
+        StopStrategy.SERVICE - Stop the indy-node service (graceful)
+        StopStrategy.PORT - Block the node port
+        StopStrategy.DEMOTE - Demote the node
+        StopStrategy.KILL - Kill the indy-node service (ungraceful)
+        Optional. (Default: chaosindy.common.StopStrategy.SERVICE.value)
+    :type stop_strategy: int
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     primary = get_primary(genesis_file, compile_stats=True,
                           ssh_config_file=ssh_config_file)
@@ -1179,14 +2148,12 @@ def stop_f_backup_primaries_before_primary(genesis_file, f=None,
         # Stop up to f backup primaries
         # Set f if not defined
         if not f:
-            # TODO: determine if f_value is always less than Count_of_replicas.
-            f = min(validator_info['Node_info']['Count_of_replicas'],
-                    validator_info['Pool_info']['f_value'])
+            f = validator_info['Pool_info']['f_value']
 
         backup_primaries = {}
         # No backup primaries are stopped when f == 1
         i = 1
-        if f > 1:
+        if int(f) > 1:
             # Starting at 1 and iterating up to, but not inclding f ensures we
             # do not fall out of concensus by shutting down too many nodes.
             node_info = validator_info['Node_info']
@@ -1211,24 +2178,24 @@ def stop_f_backup_primaries_before_primary(genesis_file, f=None,
             'stopped_nodes': backup_primaries,
             'next_primary': next_primary
         }
-        with open("{}/stopped_primary".format(output_dir), 'w') as f:
-            f.write(json.dumps(primary_data))
+        with open("{}/stopped_primary".format(output_dir), 'w') as sp:
+            sp.write(json.dumps(primary_data))
         return True
     return False
 
-
-def stop_n_nodes(genesis_file, number_of_nodes=None,
-                 selection_strategy=SelectionStrategy.FORWARD.value,
-                 stop_strategy=StopStrategy.SERVICE.value,
-                 include_primary='Yes',
-                 include_backup_primaries='Yes',
-                 include_other_nodes='Yes',
-                 max_checks_for_primary=6,
-                 sleep_between_checks=10,
-                 stop_node_timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-                 ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def stop_n_nodes(genesis_file: str, number_of_nodes: Union[str, int] = 1,
+    selection_strategy: int = SelectionStrategy.FORWARD.value,
+    stop_strategy: int = StopStrategy.SERVICE.value,
+    include_primary: str = 'Yes',
+    include_backup_primaries: str = 'Yes',
+    include_other_nodes: str = 'Yes',
+    max_checks_for_primary: Union[str,int] = 6,
+    sleep_between_checks: Union[str,int] = 10,
+    stop_node_timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
-    Stop a least one or more backup primaries (replicas)
+    Stop a least one or more nodes
+
     TODO: Change state file from stopped_nodes to stopped_primary? If so,
           must change logic to read the file into a dict (default empty dict),
           add/update the dict, and write it out to disk. Overwriting the file
@@ -1243,32 +2210,71 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
         - backup primaries
         - all other nodes in the order they are listed in the genesis file
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      number_of_nodes - How many backup replicas to stop. Must be greater than 1
-                        and no more than the number of replicas reported by
-                        validator info.
-      selection_strategy - How to select which <number_of_nodes>backup
-                           primaries to stop. Options defined by
-                           SelectionStrategy in chaosindy.common
-      stop_strategy - How to "stop" backup primaries. Options defined by
-                      StopStrategy in chaosindy.common
-      include_primary - Include the primary when selecting nodes using the
-                        stop_strategy?
-      include_backup_primaries - Include the backup primaries when selecting
-                                 nodes using the stop_strategy?
-      include_other_nodes - Include non-primary and non-backup-primary nodes
-                            when selecting nodes using the stop_strategy?
-      max_checks_for_primary - When a primary is stopped, what is the maximum
-                               number of times the function should check for a
-                               view change? See sleep_between_checks.
-      sleep_between_checks - When a primary is stopped, how long should the
-                             function sleep between checks for a view change.
-                             See max_checks_for_primary.
-      stop_node_timeout - How long should the function wait for stop_strategy
-                          operation to complete?
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :type genesis_file: str
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param number_of_nodes: How many nodes to stop.
+        Optional. (Default: 1)
+    :type number_of_nodes: Union[str,int]
+    :param selection_strategy: A selection strategy defined by the
+        chaosindy.common.SelectionStrategy enum.
+        Examples include:
+        SelectionStrategy.FORWARD - Select nodes from the beginning of the list
+        SelectionStrategy.REVERSE - Select nodes from the end of the list
+        SelectionStrategy.RANDOM - Select nodes randomly
+        The node list is created in the following order and then traversed in
+        the manner defined by the selection_strategy.
+        - primary
+        - backup primaries
+        - all other nodes in the order they are listed in the genesis file
+        Optional. (Default: chaosindy.common.SelectionStrategy.FORWARD.value)
+    :type selection_strategy: int
+    :param stop_strategy: A stop strategy defined by the
+        chaosindy.common.StopStrategy enum. Examples include:
+        StopStrategy.SERVICE - Stop the indy-node service (graceful)
+        StopStrategy.PORT - Block the node port
+        StopStrategy.DEMOTE - Demote the node
+        StopStrategy.KILL - Kill the indy-node service (ungraceful)
+        Optional. (Default: chaosindy.common.StopStrategy.SERVICE.value)
+    :type stop_strategy: int
+    :param include_primary: Include the primary in the node selection list? This
+        parameter is case insensitive.
+        Valid true options include: 'y', 'yes', '1', 't', 'true'
+        Valid false options include: 'n', 'no', '0', 'f', 'false'
+        Optional. (Default: "Yes")
+    :type include_primary: str
+    :param include_backup_primaries: Include backup primaries in the node
+        selection list? This parameter is case insensitive.
+        Valid true options include: 'y', 'yes', '1', 't', 'true'
+        Valid false options include: 'n', 'no', '0', 'f', 'false'
+        Optional. (Default: "Yes")
+    :type include_backup_primaries: str
+    :param include_other_nodes: Include non-primary and non-backup-primary nodes
+        when selecting nodes using the stop_strategy? This parameter is case
+        insensitive.
+        Valid true options include: 'y', 'yes', '1', 't', 'true'
+        Valid false options include: 'n', 'no', '0', 'f', 'false'
+        Optional. (Default: "Yes")
+    :type include_other_nodes: str
+    :param max_checks_for_primary: When a primary is stopped, what is the
+        maximum number of times the function should check for a view change? See
+        sleep_between_checks.
+        Optional. (Default: 6)
+    :type max_checks_for_primary: Union[str,int]
+    :param sleep_between_checks: When a primary is stopped, how long should the
+        function sleep between checks for a view change.
+        See max_checks_for_primary.
+        Optional. (Default: 10)
+    :type sleep_between_checks: Union[str,int]
+    :param stop_node_timeout: How long should the function wait for
+        stop_strategy operation to complete?
+    :type stop_node_timeout: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     # Variable substitution in chaostoolkit appears to only support strings.
     # When variables are not strings, they will need to be converted/cast.
@@ -1302,14 +2308,15 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
     node_selection = []
 
     # Are all "other" nodes included? If so, prime the list with a complete list
-    # of aliases from the genesis file.
-    if include_other_nodes:
+    # of aliases from the genesis file. See true_list in chaosindy.common.
+    if include_other_nodes.lower() in true_list:
         other_nodes = genesis_file_aliases.copy()
 
     # Get replica information from the primary's validator info
     primary = get_primary(genesis_file, compile_stats=True,
                           ssh_config_file=ssh_config_file)
-    if include_primary:
+    # See true_list in chaosindy.common
+    if include_primary.lower() in true_list:
         message = "Adding the primary ({}) to the node_selection list"
         logger.debug(message.format(primary))
         node_selection.append(primary)
@@ -1320,8 +2327,9 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
 
     # Remove the primary from other nodes even if it is not included in
     # node_selection. The objective is to get other_nodes down to just the
-    # list of non-primary and non-backup-primary nodes.
-    if include_other_nodes:
+    # list of non-primary and non-backup-primary nodes. See true_list in
+    # chaosindy.common
+    if include_other_nodes.lower() in true_list:
         other_nodes.remove(primary)
 
     # Get replica information from the primary's validator info
@@ -1332,7 +2340,7 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
     node_info = validator_info['Node_info']
     replica_status = node_info['Replicas_status']
 
-    # Extract the backup primaries 
+    # Extract the backup primaries
     backup_primaries = []
     for key in replica_status.keys():
         # Skip the primary. It already be added if include_primary is set to
@@ -1399,7 +2407,7 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
     }
     with open("{}/stopped_nodes".format(output_dir), 'w') as f:
         f.write(json.dumps(data))
-    
+
     if primary in stopped_nodes.keys():
         message = "Primary %s was included in list of demoted nodes. Wait for" \
                   " view change."
@@ -1416,14 +2424,15 @@ def stop_n_nodes(genesis_file, number_of_nodes=None,
 
     return True
 
-def start_stopped_nodes(genesis_file,
-    ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
-    """
-    Start the replicas stopped by a call to stop_n_nodes.
 
-    stop_n_nodes must be called before
-    start_stopped_nodes. Otherwise the stopped_nodes state
-    file in the experiment's chaos temp dir will not exist.
+def start_stopped_nodes(genesis_file: str,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Start the nodes stopped by a call to stop_n_nodes.
+
+    stop_n_nodes must be called before start_stopped_nodes. Otherwise the
+    stopped_nodes state file in the experiment's chaos temp dir will not exist.
+
     TODO: Move to a chaosindy.actions.replica.py?
     TODO: Change state file from stopped_nodes to stopped_primary? If so,
           must change logic to read the file into a dict (default empty dict),
@@ -1441,6 +2450,15 @@ def start_stopped_nodes(genesis_file,
       genesis_file - path to the pool genesis transaction file
     Keyword Arguments (optional):
       ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :type genesis_file: str
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     output_dir = get_chaos_temp_dir()
     stopped_primary_dict = {}
@@ -1471,16 +2489,84 @@ def start_stopped_nodes(genesis_file,
     return True
 
 
-def decrease_f_to(genesis_file,
-                  f_value=1,
-                  selection_strategy=SelectionStrategy.REVERSE.value,
-                  seed=DEFAULT_CHAOS_SEED,
-                  pool_name=DEFAULT_CHAOS_POOL,
-                  wallet_name=DEFAULT_CHAOS_WALLET_NAME,
-                  wallet_key=DEFAULT_CHAOS_WALLET_KEY,
-                  timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
-                  pause_after=DEFAULT_CHAOS_PAUSE,
-                  ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def decrease_f_to(genesis_file: str, f_value: Union[str,int] = 1,
+    selection_strategy: int = SelectionStrategy.REVERSE.value,
+    seed: str = DEFAULT_CHAOS_SEED, pool_name: str = DEFAULT_CHAOS_POOL,
+    wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
+    wallet_key: str = DEFAULT_CHAOS_WALLET_KEY,
+    timeout: Union[str,int] = DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+    pause_after: Union[str,int] = DEFAULT_CHAOS_PAUSE,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
+    Decrease the pool's f_value to a given value.
+
+    Demote a sufficient number of nodes in order to reach the given f_value.
+    A "demoted_nodes" state file is created to track demoted nodes.
+
+    A typical/suggested workflow is as follows:
+    1. Decrease a pool's f_value. (decrease_f_to)
+    2. Optionally do something (write a NYM to ledger. Still in consensus?)
+    3. Increase a pool's f_value back to it's original f_value (revert_f)
+
+    Assumptions:
+      - A pool of at least 4 nodes
+      - The node list from which to select nodes using the given
+        selection_strategy will be in the following order:
+        - primary
+        - backup primaries
+        - all other nodes in the order they are listed in the genesis file
+
+    :type genesis_file: str
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param f_value: The new f_value
+        Optional. (Default: 1)
+    :type f_value: Union[str,int]
+    :param selection_strategy: A selection strategy defined by the
+        chaosindy.common.SelectionStrategy enum.
+        Examples include:
+        SelectionStrategy.FORWARD - Select nodes from the beginning of the list
+        SelectionStrategy.REVERSE - Select nodes from the end of the list
+        SelectionStrategy.RANDOM - Select nodes randomly
+        The node list is created in the following order and then traversed in
+        the manner defined by the selection_strategy.
+        - primary
+        - backup primaries
+        - all other nodes in the order they are listed in the genesis file
+        Optional. (Default: chaosindy.common.SelectionStrategy.FORWARD.value)
+    :type selection_strategy: int
+    :param seed : A steward or trustee seed. A did OR a seed is required, but
+        not both. The did will be used if both are given. Needed to get
+        validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
+    :type seed: str
+    :param pool: The pool to connect to when getting validator info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_POOL)
+    :type pool: str
+    :param wallet_name: The name of the wallet to use when getting validator
+        info.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
+    :type wallet_name: str
+    :param wallet_key: The key to use when opening the wallet designated by
+        wallet_name.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_KEY)
+    :type wallet_key: str
+    :param timeout: How long indy-cli can take to perform the operation before
+        timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param pause_after: How long pause/sleep after demoting nodes.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_PAUSE)
+    :type pause_after: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     if f_value:
         f_value = int(f_value)
     if selection_strategy:
@@ -1536,9 +2622,9 @@ def decrease_f_to(genesis_file,
     # Make a copy of the validator_nodes list and remove the primary
     validator_nodes_copy = validator_nodes.copy()
 
-    # Remove the primary from validator_nodes_copy. validator_nodes_copy will be the list from
-    # which we will select nodes to demote AFTER removing the primary from the
-    # list.
+    # Remove the primary from validator_nodes_copy. validator_nodes_copy will be
+    # the list from which we will select nodes to demote AFTER removing the
+    # primary from the list.
     validator_nodes_copy.remove(primary)
 
     if selection_strategy == SelectionStrategy.RANDOM.value:
@@ -1553,7 +2639,8 @@ def decrease_f_to(genesis_file,
             nodes_to_demote_copy.remove(random_node)
         nodes_to_demote = nodes_to_demote_random
     elif selection_strategy == SelectionStrategy.REVERSE.value:
-        nodes_to_demote = list(reversed(validator_nodes_copy))[0:demote_node_count]
+        reversed_list = reversed(validator_nodes_copy)
+        nodes_to_demote = list(reversed_list)[0:demote_node_count]
     elif selection_strategy == SelectionStrategy.FORWARD.value:
         nodes_to_demote = validator_nodes_copy[0:demote_node_count]
 
@@ -1584,11 +2671,38 @@ def decrease_f_to(genesis_file,
     return True
 
 
-def revert_f(genesis_file, timeout=DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
-             pause_after=DEFAULT_CHAOS_PAUSE,
-             ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def revert_f(genesis_file: str,
+             timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
+             pause_after: Union[str,int] = DEFAULT_CHAOS_PAUSE,
+             ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
     Promote all nodes in state file demoted-nodes.
+
+    See decrease_f_to
+
+    A typical/suggested workflow is as follows:
+    1. Decrease a pool's f_value. (decrease_f_to)
+    2. Optionally do something (write a NYM to ledger. Still in consensus?)
+    3. Increase a pool's f_value back to it's original f_value (revert_f)
+
+    :type genesis_file: str
+    :param genesis_file: The relative or absolute path to a genesis file.
+        Required.
+    :type genesis_file: str
+    :param timeout: How long indy-cli can take to perform the operation before
+        timing out.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT)
+    :type timeout: Union[str,int]
+    :param pause_after: How long pause/sleep after demoting nodes.
+        Optional.
+        (Default: chaosindy.common.DEFAULT_CHAOS_PAUSE)
+    :type pause_after: Union[str,int]
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     output_dir = get_chaos_temp_dir()
     demoted_nodes_file = "{}/demoted-nodes".format(output_dir)

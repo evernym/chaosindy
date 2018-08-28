@@ -7,58 +7,70 @@ from chaosindy.actions.node import get_primary
 from logzero import logger
 from time import sleep
 
-def primary_and_replicas_are_reachable(genesis_file,
-                                       ssh_config_file="~/.ssh/config",
-                                       timeout="5"):
-    '''
+def primary_and_replicas_are_reachable(genesis_file: str,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
+    """
     Is the primary and all replicas reachable?
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
-      compile_stats - create a 'current_primary' attribute when writing the
-                      'primaries' state file and return the name/alias of the
-                      primary when calling get_primary?
-    '''
+    :param genesis_file: The relative or absolute path to the genesis
+        transaction file.
+        Required.
+    :type ssh_config_file: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
+    """
     primary = get_primary(genesis_file, compile_stats=True,
                           ssh_config_file=ssh_config_file)
     if primary:
         output_dir = get_chaos_temp_dir()
-        with open("{}/{}-validator-info".format(output_dir, primary), 'r') as vif:
-            validator_info = json.load(vif)
+        vif = "{}/{}-validator-info".format(output_dir, primary)
+        with open(vif, 'r') as vifh:
+            validator_info = json.load(vifh)
         n = validator_info['Node_info']['Count_of_replicas']
 
-        logger.debug("Check if client and node ports are reachable for primary %s", primary)
+        logger.debug("Check if client and node ports are reachable for " \
+                     "primary %s", primary)
         if not node_ports_are_reachable(genesis_file, primary):
             return False
 
         for i in range(1, n):
-            replica = validator_info['Node_info']['Replicas_status']["{}:{}".format(primary, i)]['Primary'].split(":")[0]
-            logger.debug("Check if client and node ports are reachable for replica %s", replica)
+            replica_status = validator_info['Node_info']['Replicas_status']
+            primary = replica_status["{}:{}".format(primary, i)]['Primary']
+            replica = primary.split(":")[0]
+            logger.debug("Check if client and node ports are reachable for " \
+                         "replica %s", replica)
             if not node_ports_are_reachable(genesis_file, replica):
                 return False
         return True
     return False
 
 
-def demoted_backup_primaries_are_excluded(genesis_file, 
-                                          ssh_config_file=DEFAULT_CHAOS_SSH_CONFIG_FILE):
+def demoted_backup_primaries_are_excluded(genesis_file: str,
+    ssh_config_file: str = DEFAULT_CHAOS_SSH_CONFIG_FILE) -> bool:
     """
-    Probe that checks if the primary is still trying to reach demoted nodes.
+    Check if the primary is still trying to reach demoted nodes.
 
-    Arguments:
-      genesis_file - path to the pool genesis transaction file
-    Keyword Arguments (optional):
-      ssh_config_file - SSH config file. Defaults to ~/.ssh/config.
+    :param genesis_file: The relative or absolute path to the genesis
+        transaction file.
+        Required.
+    :type ssh_config_file: str
+    :param ssh_config_file: The relative or absolute path to the SSH config
+        file.
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SSH_CONFIG_FILE)
+    :type ssh_config_file: str
+    :return: bool
     """
     output_dir = get_chaos_temp_dir()
     primary = get_primary(genesis_file, compile_stats=True,
                           ssh_config_file=ssh_config_file)
     validator_info = {}
     if primary:
-        with open("{}/{}-validator-info".format(output_dir, primary), 'r') as vif:
-            validator_info = json.load(vif)
+        vif = "{}/{}-validator-info".format(output_dir, primary)
+        with open(vif, 'r') as vifh:
+            validator_info = json.load(vifh)
     reachable_nodes = validator_info['Pool_info']['Reachable_nodes']
 
     stopped_nodes_file = "{}/stopped_nodes".format(output_dir)
