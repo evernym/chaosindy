@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "title": "Force Catchup",
-    "description": "Force f random nodes to perform a catchup by blocking the node port (inter-node communcation port), generate load, unblock the node port, and then test if each of the f blocked nodes completes a catchup. Expect the cluster to be in consensus and the catchup to complete w/o error. Note that CHAOS_VALIDATOR_NODES must be an environment variable containing a string that is a valid JSON list of node aliases as defined in CHAOS_GENESIS_FILE.",
+    "description": "Force f random nodes to perform a catchup by blocking the node port (inter-node communcation port), generate load, unblock the node port, and then test if each of the f blocked nodes completes a catchup. Expect the cluster to be in consensus and the catchup to complete w/o error.",
     "tags": [
         "service",
         "indy-node",
@@ -15,6 +15,10 @@
         "genesis_file": {
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
+        },
+        "ssh_confing_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
         },
         "write_nym_timeout": {
             "type": "env",
@@ -66,6 +70,7 @@
                     "func": "nodes_in_mode",
                     "arguments": {
                         "genesis_file": "${genesis_file}",
+                        "ssh_config_file": "${ssh_config_file}",
                         "mode": "syncing",
                         "count": "0"
                     }
@@ -101,6 +106,7 @@
                 "func": "block_node_port_random",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "count": "${catchup_count}"
                 }
             }
@@ -115,7 +121,8 @@
                 "arguments": {
                     "clients": "${load_clients}",
                     "command": "${load_command}",
-                    "timeout": "${load_command_timeout}"
+                    "timeout": "${load_command_timeout}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -127,7 +134,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "unblock_node_port_random",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -141,7 +149,8 @@
                 "arguments": {
                     "clients": "${load_clients}",
                     "command": "${load_command}",
-                    "timeout": "${load_command_timeout}"
+                    "timeout": "${load_command_timeout}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -155,7 +164,8 @@
                 "arguments": {
                     "genesis_file": "${genesis_file}",
                     "transactions": "${load_transactions}",
-                    "pause_before_synced_check": "${pause_before_synced_check}"
+                    "pause_before_synced_check": "${pause_before_synced_check}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         }
@@ -170,6 +180,7 @@
                 "func": "unblock_node_port_random",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "best_effort": true
                 }
             }

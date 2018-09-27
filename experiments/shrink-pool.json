@@ -16,6 +16,10 @@
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
         },
+        "ssh_config_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
+        },
         "write_nym_timeout": {
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
@@ -74,6 +78,7 @@
                 "func": "decrease_f_to",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "f_value": "${f_value}",
                     "selection_strategy": "${selection_strategy}",
                     "pause_after": "${pause_after}"
@@ -89,6 +94,7 @@
                 "func": "stop_primary",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "stop_strategy": 1
                 }
             }
@@ -102,6 +108,7 @@
                 "func": "start_stopped_primary_after_view_change",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "max_checks_for_primary": 20,
                     "sleep_between_checks": 10,
                     "start_backup_primaries": false
@@ -119,6 +126,7 @@
                 "func": "revert_f",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "timeout": "${set_services_timeout}",
                     "pause_after": "${pause_after}"
                 }
@@ -132,7 +140,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "start_stopped_primary",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },

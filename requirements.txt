@@ -5,3 +5,4 @@ logzero
 psutil
 pytest
 click
+boto3

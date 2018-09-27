@@ -668,7 +668,6 @@ def unblocked_nodes_are_caught_up(genesis_file: str,
         return nodes_are_caught_up(selected, genesis_file, transactions,
                                    did=did, seed=seed, wallet_name=wallet_name,
                                    wallet_key=wallet_key, pool=pool,
-                                   timeout=timeout,
                                    ssh_config_file=ssh_config_file)
     return True
 
@@ -1027,7 +1026,6 @@ def resurrect_random_nodes(genesis_file: str,
         return nodes_are_caught_up(selected, genesis_file, transactions,
                                    did=did, seed=seed, wallet_name=wallet_name,
                                    wallet_key=wallet_key, pool=pool,
-                                   timeout=timeout,
                                    ssh_config_file=ssh_config_file)
     return True
 
@@ -1102,8 +1100,7 @@ def nodes_are_caught_up(nodes: List[str], genesis_file: str,
     # 1. Get validator info from all nodes
     get_validator_info(genesis_file, did=did, seed=seed,
                        wallet_name=wallet_name, wallet_key=wallet_key,
-                       pool=pool, timeout=timeout,
-                       ssh_config_file=ssh_config_file)
+                       pool=pool, ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
 
     matching = []
@@ -1219,7 +1216,8 @@ def ensure_nodes_up(genesis_file: str, count = Union[str,int],
 
 
 def set_node_services_from_cli(genesis_file: str, alias: str, alias_did: str,
-    seed: str = DEFAULT_CHAOS_SEED,
+    did: str = DEFAULT_CHAOS_DID, seed: str = DEFAULT_CHAOS_SEED,
+    services: str = DEFAULT_CHAOS_NODE_SERVICES,
     wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
     wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
     timeout: Union[str,int] = DEFAULT_CHAOS_LEDGER_TRANSACTION_TIMEOUT,
@@ -1232,19 +1230,22 @@ def set_node_services_from_cli(genesis_file: str, alias: str, alias_did: str,
     :type genesis_file: str
     :param alias: The node name/alias for which to set the 'services' attribute
     :type alias: str
+    :param alias_did: The 'dest' did associated with the alias/node
+        Required.
+    :type did: str
     :param did: A steward or trustee DID. A did OR a seed is required, but not
         both. The did will be used if both are given. Needed to get validator
         info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
     :type did: str
-    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
-        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
-    :type services: str
     :param seed : A steward or trustee seed. A did OR a seed is required, but
         not both. The did will be used if both are given. Needed to get
         validator info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
     :type seed: str
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
+    :type services: str
     :param wallet_name: The name of the wallet to use when getting validator
         info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
@@ -1371,7 +1372,7 @@ def set_node_services_from_cli(genesis_file: str, alias: str, alias_did: str,
 
 
 def set_services_by_node_name(genesis_file: str, alias: str,
-    did: str, services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    services: str = DEFAULT_CHAOS_NODE_SERVICES, did: str = DEFAULT_CHAOS_DID,
     seed: str = DEFAULT_CHAOS_SEED,
     wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
     wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
@@ -1441,7 +1442,7 @@ def set_services_by_node_name(genesis_file: str, alias: str,
 
 
 def demote_by_node_name(genesis_file: str, alias: str,
-    did: str, services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    services: str = DEFAULT_CHAOS_NODE_SERVICES, did: str = DEFAULT_CHAOS_DID,
     seed: str = DEFAULT_CHAOS_SEED,
     wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
     wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
@@ -1458,17 +1459,14 @@ def demote_by_node_name(genesis_file: str, alias: str,
     :type genesis_file: str
     :param alias: The node name/alias for which to set the 'services' attribute
     :type alias: str
-    :param services: The node's services. Must be one of the following:
-        "VALIDATOR", "OBSERVER", ""
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
     :type services: str
     :param did: A steward or trustee DID. A did OR a seed is required, but not
         both. The did will be used if both are given. Needed to get validator
         info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
     :type did: str
-    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
-        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
-    :type services: str
     :param seed : A steward or trustee seed. A did OR a seed is required, but
         not both. The did will be used if both are given. Needed to get
         validator info.
@@ -1553,7 +1551,8 @@ def restart_node(genesis_file: str, alias: str,
 
 
 def promote_by_node_name(genesis_file: str, alias: str,
-    did: str, services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    services: str = DEFAULT_CHAOS_NODE_SERVICES,
+    did: str = DEFAULT_CHAOS_DID,
     seed: str = DEFAULT_CHAOS_SEED,
     wallet_name: str = DEFAULT_CHAOS_WALLET_NAME,
     wallet_key: str = DEFAULT_CHAOS_WALLET_KEY, pool: str = DEFAULT_CHAOS_POOL,
@@ -1571,22 +1570,19 @@ def promote_by_node_name(genesis_file: str, alias: str,
     :type genesis_file: str
     :param alias: The node name/alias for which to set the 'services' attribute
     :type alias: str
-    :param services: The node's services. Must be one of the following:
-        "VALIDATOR", "OBSERVER", ""
-    :type services: str
     :param did: A steward or trustee DID. A did OR a seed is required, but not
         both. The did will be used if both are given. Needed to get validator
         info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_DID)
     :type did: str
-    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
-        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
-    :type services: str
     :param seed : A steward or trustee seed. A did OR a seed is required, but
         not both. The did will be used if both are given. Needed to get
         validator info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
     :type seed: str
+    :param services: One of the following: "VALIDATOR", "OBSERVER", ""
+        Optional. (Default: chaosindy.common.DEFAULT_CHAOS_NODE_SERVICES)
+    :type services: str
     :param wallet_name: The name of the wallet to use when getting validator
         info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_WALLET_NAME)
@@ -1626,7 +1622,8 @@ def promote_by_node_name(genesis_file: str, alias: str,
         # The following issue changed the node promotion workflow to require a
         # node restart: https://jira.hyperledger.org/browse/INDY-1297
         logger.debug("Sleeping 10 seconds between setting %s's services to" \
-                     " 'VALIDATOR' and restarting it's indy-node service.")
+                     " 'VALIDATOR' and restarting it's indy-node service.",
+                     alias)
         sleep(5)
         status = restart_node(genesis_file, alias, timeout=timeout,
                               ssh_config_file=ssh_config_file)
@@ -2159,13 +2156,13 @@ def stop_f_backup_primaries_before_primary(genesis_file: str,
             node_info = validator_info['Node_info']
             replica_status = node_info['Replicas_status']
             for i in range(1, f):
-                replica = replicas_status["{}:{}".format(primary, i)]['Primary']
+                replica = replica_status["{}:{}".format(primary, i)]['Primary']
                 replica = replica.split(":")[0]
                 details = stop_by_strategy(genesis_file, replica, stop_strategy,
                     ssh_config_file=ssh_config_file)
                 backup_primaries[replica] = details
         # Get the next expected primary
-        next_primary = replicas_status["{}:{}".format(primary, i+1)]['Primary']
+        next_primary = replica_status["{}:{}".format(primary, i+1)]['Primary']
         next_primary = next_primary.split(":")[0]
 
         # Stop the primary
@@ -2306,11 +2303,20 @@ def stop_n_nodes(genesis_file: str, number_of_nodes: Union[str, int] = 1,
     genesis_file_aliases = get_aliases(genesis_file)
     stopped_nodes = {}
     node_selection = []
+    other_nodes = []
 
     # Are all "other" nodes included? If so, prime the list with a complete list
     # of aliases from the genesis file. See true_list in chaosindy.common.
-    if include_other_nodes.lower() in true_list:
+    #
+    # Cast include_other_nodes to a string and then convert to lower case.
+    # It appears that chaostoolkit converts false used in the experiment JSON
+    # file to False (bool) and python typing (include_other_nodes: str = 'Yes')
+    # doesn't seem to care.
+    if str(include_other_nodes).lower() in true_list:
+        include_other_nodes = True
         other_nodes = genesis_file_aliases.copy()
+    else:
+        include_other_nodes = False
 
     # Get replica information from the primary's validator info
     primary = get_primary(genesis_file, compile_stats=True,
@@ -2329,7 +2335,7 @@ def stop_n_nodes(genesis_file: str, number_of_nodes: Union[str, int] = 1,
     # node_selection. The objective is to get other_nodes down to just the
     # list of non-primary and non-backup-primary nodes. See true_list in
     # chaosindy.common
-    if include_other_nodes.lower() in true_list:
+    if include_other_nodes:
         other_nodes.remove(primary)
 
     # Get replica information from the primary's validator info
@@ -2536,9 +2542,7 @@ def decrease_f_to(genesis_file: str, f_value: Union[str,int] = 1,
         - all other nodes in the order they are listed in the genesis file
         Optional. (Default: chaosindy.common.SelectionStrategy.FORWARD.value)
     :type selection_strategy: int
-    :param seed : A steward or trustee seed. A did OR a seed is required, but
-        not both. The did will be used if both are given. Needed to get
-        validator info.
+    :param seed : A steward or trustee seed. Needed to get validator info.
         Optional. (Default: chaosindy.common.DEFAULT_CHAOS_SEED)
     :type seed: str
     :param pool: The pool to connect to when getting validator info.

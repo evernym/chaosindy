@@ -7,6 +7,7 @@ Topics covered in this README:
   * Installation
   * Configuration
 * Executing Experiments
+* Digesting results
 
 # Chaos Engineering
 Chaos Engineering is the discipline of experimenting on a distributed system in
@@ -25,9 +26,9 @@ experiments for Hyperledger Indy. They are currently being maintained here in
 the “chaosindy” python module.
 
 When existing “chaosindy” actions and probes need to execute remotely, python
-Fabric (not to be confused with Hyperledger Fabric) is used, which is
-“designed to execute shell commands remotely over SSH, yielding useful Python
-objects in return”.
+Fabric (built on top of paramiko - not to be confused with Hyperledger Fabric)
+is used, which is “designed to execute shell commands remotely over SSH,
+yielding useful Python objects in return”.
 
 # Creating Experiments
 “An Experiment declares a steady state hypothesis, alongside probes to validate
@@ -454,60 +455,96 @@ STACK_COMPANION = 1
 ```
 
 # Executing Experiments
-Each chaosindy experiment has a an associated “run” script.
+Each chaosindy experiment has a an associated “run” script (see scripts/run-*)
+and the run.py script (work in progress) leverages these to allow your to create
+a suite/batch (one or any combinations) of experiments to run.
 
 Experiments can be executed from any host where the following is true:
-chaosindy is installed and configured (~/.ssh/config, etc…)
-All client and validator nodes referenced in “run” scripts are reachable.
+- chaosindy is installed and configured (~/.ssh/config, etc…)
+- All client and validator nodes scripts are reachable.
 
-A python script capable of running any experiment may eventually be written,
-but until then, each experiment will have a “run” script that does the
-following:
+run.py TODOs:
+* Create a report from the journal.json output from each experiment and include
+  the following for each experiment derived from each experiment's journal.json:
+  * For each experiment:
+    * Title: ['experiment']['title']
+    * Description: ['experiment']['description]
+    * Status: ['status']
+    * Steady State status before method:
+      ['steady_states']['before']['steady-state-met'] -> true or false
+      If false, list failed probe name(s) and their and their output.
+      Name: ['steady_states']['before']['steady-state-met']['probes'][0-N]['activity']['name']
+      Output: ['steady_states']['before']['steady-state-met']['probes'][0-N]['output']
+    * For each activity in the method:
+      Name: ['run'][0-N]['activity']['name']
+      Type: ['run'][0-N]['activity']['type'] -> action or probe
+      Output: ['run'][0-N]['output'] -> Perhaps should always be true or false.
+      Status: ['run'][0-N]['status'] -> "succeeded" or "failed"
+    * Steady State status after method:
+      ['steady_states']['after']['steady-state-met'] -> true or false
+      If false, list failed probe name(s) and their and their output.
+      Name: ['steady_states']['after']['steady-state-met']['probes'][0-N]['activity']['name']
+      Output: ['steady_states']['after']['steady-state-met']['probes'][0-N]['output']
+    * Rollback results
+      Name: ['rollbacks'][0-N]['activity']['name']
+      Output: ['rollbacks'][0-N]['activity']['output'] -> required all methods
+      used to rollback changes to always return true or false?
+      Status: ['rollbacks'][0-N]['activity']['status'] -> "succeeded" or
+      "failed"?
+    * (optional) Overall status. The default behavior of chaostoolkit is that
+      experiments fail only if the steady state hypothesis is not met before and
+      after the experiment's method is executed. An experiment's method is
+      composed of one or more activities. If any/all of these activities
+      encounter issues (raise exceptions, return false, etc.) the experiment
+      ignores them and simply succeeds or fails based on the probes executed in
+      the steady state hypothesis. Perhaps some logic needs to be added to
+      report an overall status of 'fail'/'failed' if any of the activities in
+      the experiment's method "fail"?
+    * On failure (optionally - overall status failure), capture node state and
+      include deposit location S3/filesystem in the report.
+* Complete and test S3 integration
+  * On individual experiment failure, capture node state and upload to S3
+  * Upload generated report to S3
+* Complete and test notification feature. Perhaps notification(s) should only be
+  sent if at least one experiment "fails" (based on Experiment status OR Overall
+  status)?
+* Complete and test a node reset (delete domain and pool ledger) feature. Doing
+  so will allow each experiment (running in a controlled environment) to start
+  with a clean slate. Perhaps a user should be able to dictate which experiments
+  get a clean slate before executing?
+
+### Sample run.py execution
+#### View help documentation
+```
+(chaostk) ubuntu@KellyStableClientVirgina:~/chaosindy$ ./run.py --help
+```
+#### Run force-view-change 1000 times and replica-selection once on pool1
+```
+(chaostk) ubuntu@KellyStableClientVirgina:~/chaosindy$ ./run.py pool1 --job-id "example-1" --experiments '{"force-view-change": {"execution-count": 1000}, "replica-selection": {}}' -l debug
+```
+#### Run all experiments using their defaults on pool2
+```
+(chaostk) ubuntu@KellyStableClientVirgina:~/chaosindy$ ./run.py pool2 --job-id "example-2"
+```
+
+Alternatively, each experiment has a “run” script in the ./scripts directory
+that do the following:
 
 * Define default arguments
 * Accept arguments to override defaults
 * Execute the experiment one or more times
-* Detect if the experiment succeeded or failed and terminate immediately
-  following first failure.
+* Detect if the experiment succeeded or failed and terminate the individual 
+  run-* experiment/script immediately following first failure.
 
-### Sample _help_ output from the run-force-view-change run script
-```(chaostk) ubuntu@KellyStableClientVirgina:~/chaosindy$ ./scripts/run-force-view-change -h
-Usage: ./scripts/run-force-view-change
- required arguments: None
- optional arguments:
-   -c|--cleanup
-       Remove temporary files/directories created by the experiment?
-       Default: Yes
-       Valid Inputs (case insensitive): yes, y, 1, no, n, 0
-   -e|--execution-count
-       How many times to run the experiment.
-       Default: 1
-       Valid Input: Any positive number >= 1
-   -g|--genesis-file
-       Path to the target pool genesis transaction file.
-       Default: /home/ubuntu/chaosindy/pool_transactions_genesis
-   -h|--help
-       Print script help/usage
-   -n|--validator-nodes
-       A JSON list of node names to include in the experiment. Usually
-         the complete list from the genesis file. TODO: derive default
-         from genesis file.
-       Default: '["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
-   -t|--write-nym-timeout
-       How long to wait (seconds) before timing out while writing a NYM
-         transaction.
-       Default: 60
-       Valid Input: Any positive number >= 1
-   -s|--seed
-       Seed to use to create DID/Verkey pair used to get validator info
-         via indy-cli. Must be a Trustee or Steward seed.
-       Default: 000000000000000000000000Trustee1
-       Valid Input: A 32 byte string. See default above for an example.
+### Sample execution
+#### View help documentation
 ```
-### Sample execution - Run the force-view-change experiment 1000 times
+(chaostk) ubuntu@KellyStableClientVirgina:~/chaosindy$ ./scripts/run-force-view-change -h
+```
+#### Run the force-view-change experiment 1000 times
 ```
 (chaostk) ubuntu@KellyStableClientVirgina:~/chaosindy$ ./scripts/run-force-view-change -e 1000
 ```
 The run-force-view-change experiment will exit with a non-zero exit code as
 soon as the first failed force-view-change experiment is encountered. Otherwise,
-it will run 1000 iterations of the experiment and exist with a zero exit code.
+it will run 1000 iterations of the experiment and exit with a zero exit code.

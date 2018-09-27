@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "title": "Induce consensus failure and recovery by removing and then restoring a sufficient number of nodes",
-    "description": "Kill f random nodes to cause the cluster to fall out of consensus, test to ensure the cluster is out of consensus, bring one node back, and re-test; expecting the cluster to be in consensus. Note that CHAOS_VALIDATOR_NODES must be an environment variable containing a string that is a valid JSON list of node aliases as defined in CHAOS_GENESIS_FILE.",
+    "description": "Kill f random nodes to cause the cluster to fall out of consensus, test to ensure the cluster is out of consensus, bring one node back, and re-test; expecting the cluster to be in consensus.",
     "tags": [
         "service",
         "indy-node",
@@ -11,6 +11,10 @@
         "seed": {
             "type": "env",
             "key": "CHAOS_SEED"
+        },
+        "ssh_config_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
         },
         "genesis_file": {
             "type": "env",
@@ -41,7 +45,8 @@
                     "module": "chaosindy.actions.node",
                     "func": "all_nodes_up",
                     "arguments": {
-                        "genesis_file": "${genesis_file}"
+                        "genesis_file": "${genesis_file}",
+                        "ssh_config_file": "${ssh_config_file}"
                     }
                 }
             },
@@ -75,6 +80,7 @@
                 "func": "kill_random_nodes",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "count": "${kill_count}"
                 }
             },
@@ -108,7 +114,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "all_nodes_up",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             },
             "pauses": {
@@ -126,7 +133,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "all_nodes_up",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         }

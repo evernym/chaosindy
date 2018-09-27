@@ -4,7 +4,7 @@
 # Default parameters are as follows:
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
-export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_SSH_CONFIG_FILE=/home/ubuntu/.ssh/config
 export CHAOS_SET_SERVICES_TIMEOUT=60
 export CHAOS_PAUSE_AFTER=60
 export CHAOS_WRITE_NYM_TIMEOUT=60
@@ -33,16 +33,17 @@ usage(){
     echo "       How many times to run the experiment."
     echo "       Default: ${number_of_executions}"
     echo "       Valid Input: Any positive number >= 1"
+    echo "   -f|--ssh-config-file"
+    echo "       Path to the ssh config file (see 'man ssh_config') that maps a"
+    echo "       validator node Host names (alias used in the genesis file) to"
+    echo "       their respective , default User, Hostname (IP address in this"
+    echo "       case and Identify File (i.e. PEM file)."
+    echo "       Default: ${CHAOS_SSH_CONFIG_FILE}"
     echo "   -g|--genesis-file"
     echo "       Path to the target pool genesis transaction file."
     echo "       Default: ${CHAOS_GENESIS_FILE}"
     echo "   -h|--help"
     echo "       Print script help/usage"
-    echo "   -n|--validator-nodes"
-    echo "       A JSON list of node names to include in the experiment. Usually"
-    echo "         the complete list from the genesis file. TODO: derive default"
-    echo "         from genesis file."
-    echo "       Default: '${CHAOS_VALIDATOR_NODES}'"
     echo "   -o|--selection-order"
     echo "       Order in which replicas are selected for demotion."
     echo "       Valid Input: 1 (FORWARD), 2 (REVERSE), 3 (RANDOM)"
@@ -137,6 +138,11 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    -f|--ssh-config-file)
+    export CHAOS_SSH_CONFIG_FILE="$2"
+    shift # past argument
+    shift # past value
+    ;;
     -g|--genesis-file)
     export CHAOS_GENESIS_FILE="$2"
     shift # past argument
@@ -148,11 +154,6 @@ case $key in
     ;;
     -o|--selection-order)
     export CHAOS_SELECTION_STRATEGY=$2
-    shift # past argument
-    shift # past value
-    ;;
-    -n|--validator-nodes)
-    export CHAOS_VALIDATOR_NODES='$2'
     shift # past argument
     shift # past value
     ;;
@@ -232,7 +233,7 @@ set -- "${POSITIONAL[@]}" # restore positional parameters. May be useful for cus
 
 echo CHAOS_SEED=${CHAOS_SEED}
 echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
-echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_SSH_CONFIG_FILE=${CHAOS_SSH_CONFIG_FILE}
 echo CHAOS_SET_SERVICES_TIMEOUT=${CHAOS_SET_SERVICES_TIMEOUT}
 echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
 echo CHAOS_DEMOTE_NODE_COUNT=${CHAOS_DEMOTE_NODE_COUNT}

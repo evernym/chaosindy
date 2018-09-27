@@ -16,6 +16,10 @@
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
         },
+        "ssh_config_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
+        },
         "write_nym_timeout": {
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
@@ -57,7 +61,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "stop_f_backup_primaries_before_primary",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -70,6 +75,7 @@
                 "func": "start_stopped_primary_after_view_change",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "max_checks_for_primary": 20,
                     "sleep_between_checks": 60,
                     "start_backup_primaries": true
@@ -88,6 +94,7 @@
                 "func": "start_stopped_primary",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "start_backup_primaries": true
                 }
             }

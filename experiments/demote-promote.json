@@ -15,6 +15,10 @@
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
         },
+        "ssh_config_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
+        },
         "write_nym_timeout": {
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
@@ -81,6 +85,7 @@
                 "func": "stop_n_nodes",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "number_of_nodes": "${number_of_nodes}",
                     "selection_strategy": "${selection_strategy}",
                     "include_primary": "${include_primary}",
@@ -101,7 +106,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "start_stopped_nodes",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             },
             "pauses": {

@@ -62,10 +62,18 @@ def get_service_stats(validator_info, service_key="indy-node_status"):
 
 
 # TODO: use argparse to get user input
-genesis_file = environ.get('CHAOS_GENESIS_FILE', '/home/ubuntu/chaosindy/pool_transactions_genesis')
+genesis_file = environ.get('CHAOS_GENESIS_FILE',
+    '/home/ubuntu/chaosindy/pool_transactions_genesis')
 
 # Generate a temp dir containing JSON for each validator node
-get_validator_info(genesis_file, timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT)
+# NOTE: source=ValidatorInfoSource.NODE.value must NOT be used. This script
+#       script requires indy-node service (systemd status) details including:
+#       status, tasks, memory, cpu. The 'validator-info' script no longer
+#       includes the 'Extractions' element as of commit:
+#       https://github.com/hyperledger/indy-plenum/commit/167c7c76cd3384c0e68984aa95b666a60c2d17d1
+get_validator_info(genesis_file,
+                   timeout=DEFAULT_CHAOS_GET_VALIDATOR_INFO_TIMEOUT,
+                   source=ValidatorInfoSource.CLI.value)
 temp_dir = get_chaos_temp_dir()
 
 aliases = []

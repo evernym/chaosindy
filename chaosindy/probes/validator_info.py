@@ -232,7 +232,7 @@ def get_validator_info_from_cli(genesis_file: str, did: str,
      4. Create wallet
         NOTE: Wallet name and optional key will be parameters for the
               experiments that need validator info
-        `indy> wallet create wallet1 pool_name=pool1 key=key1`
+        `indy> wallet create wallet1 key=key1`
      5. Open wallet created in the previous step
         `indy> wallet open wallet1 key=key1`
         `wallet(wallet1):indy>`
@@ -311,11 +311,9 @@ def get_validator_info_from_cli(genesis_file: str, did: str,
     indy_cli_command_batch = join(output_dir, "indy-cli-create-wallet.in")
     with open(indy_cli_command_batch, "a") as f:
         if wallet_key:
-          f.write("wallet create {} pool_name={} key={}\n".format(wallet_name,
-              pool, wallet_key))
+          f.write("wallet create {} key={}\n".format(wallet_name, wallet_key))
         else:
-          f.write("wallet create {} pool_name={} key\n".format(wallet_name,
-              pool))
+          f.write("wallet create {} key\n".format(wallet_name))
         f.write("exit")
     create_wallet = subprocess.check_output(
         ["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT,
@@ -344,11 +342,13 @@ def get_validator_info_from_cli(genesis_file: str, did: str,
           f.write("wallet open {} key\n".format(wallet_name))
         f.write("did use {}\n".format(did))
         f.write("pool connect {}\n".format(pool))
-        f.write("ledger get-validator-info\n")
+        f.write("ledger get-validator-info timeout={}\n".format(timeout))
         f.write("exit")
+    # NOTE: Allow the subprocess to execute 5 seconds longer than the
+    #       'ledger get-validator-info' CLI command
     all_validator_info = subprocess.check_output(
         ["indy-cli", indy_cli_command_batch], stderr=subprocess.STDOUT,
-        timeout=int(timeout), shell=False)
+        timeout=int(timeout) + 5, shell=False)
     lines = all_validator_info.splitlines()
     # ledger get-validator-info returns a JSON string for each node to STDOUT
     # Each JSON string is preceeded by "Get validator info response for node..."
@@ -359,19 +359,34 @@ def get_validator_info_from_cli(genesis_file: str, did: str,
     #       lines is an interable, but not an iterator.
     i = 0
     number_of_lines = len(lines)
+    # Default to an empty dict
+    json_output = "{}"
+    append_line = False
     while i < number_of_lines:
         line = lines[i].decode()
-        if "Get validator info response for node " in line:
-            node_name = line.split("Get validator info response for node", 1)[1]
-            node_name = node_name.split(":", 1)[0].strip()
-            # The next line is the validator info JSON string
-            i += 1
-            node_info = lines[i].decode()
-            node_info_file = join(output_dir,
-                                  "{}-validator-info".format(node_name))
-            with open(node_info_file, "w") as f:
-                f.write(node_info)
+        if not append_line and "Validator Info:" in line:
+            # Clear the default
+            json_output = ""
+            append_line = True
+        elif append_line and 'Transaction has been rejected: Client request is discarded since view change is in progress' in line:
+            pass
+            # Ignore this message
+        elif append_line and (line == '' or line == 'exit'):
+            # Append lines until the first blank line or the exit command is
+            # encountered.
+            break 
+        elif append_line:
+            json_output += line
         i += 1
+
+    validator_info = json.loads(json_output)
+
+    for k, v in validator_info.items():
+        node_info_file = join(output_dir,
+                              "{}-validator-info".format(k))
+        if v != 'Timeout':
+            with open(node_info_file, "w") as f:
+                f.write(json.dumps(v['data']))
     return True
 
 
@@ -534,8 +549,8 @@ def detect_primary(genesis_file: str, did: str = DEFAULT_CHAOS_DID,
     # 1. Get validator info from all nodes
     get_validator_info(genesis_file, did=did, seed=seed,
                        wallet_name=wallet_name,
-                       wallet_key=wallet_key, pool=pool,
-                       timeout=timeout, ssh_config_file=ssh_config_file)
+                       wallet_key=wallet_key, pool=pool, timeout=timeout,
+                       ssh_config_file=ssh_config_file)
     output_dir = get_chaos_temp_dir()
 
     logger.debug("genesis_file: %s ssh_config_file: %s", genesis_file,

@@ -16,6 +16,10 @@
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
         },
+        "ssh_config_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
+        },
         "write_nym_timeout": {
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
@@ -57,7 +61,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "stop_primary",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -69,11 +74,11 @@
                 "module": "chaosindy.actions.node",
                 "func": "start_stopped_primary_after_view_change",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         }
-
     ],
     "rollbacks": [
         {
@@ -84,7 +89,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "start_stopped_primary",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },

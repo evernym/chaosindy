@@ -4,22 +4,26 @@
 # Default parameters are as follows:
 export CHAOS_SEED=000000000000000000000000Trustee1
 export CHAOS_GENESIS_FILE=/home/ubuntu/chaosindy/pool_transactions_genesis
-export CHAOS_VALIDATOR_NODES='["Node1", "Node2", "Node3", "Node4", "Node5", "Node6", "Node7", "Node8", "Node9", "Node10"]'
+export CHAOS_SSH_CONFIG_FILE=/home/ubuntu/.ssh/config
 export CHAOS_WRITE_NYM_TIMEOUT=60
 # IMPORTANT! Must not induce catchup on more than f nodes. Doing so (i.e. 4 of
 #            10) causes the cluster to not reach consensus while running the load
 #            script.
 export CHAOS_CATCHUP_COUNT=3
 export CHAOS_LOAD_CLIENTS='["Client1", "Client2", "Client3"]'
-#export CHAOS_LOAD_COMMAND='/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c 2 -n 2 -k nym -g /home/ubuntu/pool_transactions_genesis'
-export CHAOS_LOAD_CLIENT_COUNT=1
-export CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=400
+export CHAOS_LOAD_BATCHES_PER_SECOND=1
+export CHAOS_LOAD_CLIENT_COUNT=3
+export CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=10
+export CHAOS_LOAD_TOTAL_TRANSACTIONS=1200
+# Calculate the timeout based on configurable factors
+export CHAOS_LOAD_GENERATION_TIMEOUT=$((CHAOS_LOAD_TOTAL_TRANSACTIONS / ( CHAOS_LOAD_BATCHES_PER_SECOND * CHAOS_LOAD_CLIENT_COUNT * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT )))
+
 # This is the number of CHAOS_LOAD_CLIENTS (client nodes running the load script)
 # * CHAOS_LOAD_CLIENT_COUNT (processes or virtual clients spawned on each client
 # node) * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT (each process/virtual client writes
 # this many nyms to the ledger
 export CHAOS_LOAD_TRANSACTIONS='1200 to 2400'
-export CHAOS_LOAD_COMMAND="/usr/bin/python3 /home/ubuntu/indy-node/scripts/performance/perf_processes.py -c ${CHAOS_LOAD_CLIENT_COUNT} -n ${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT} -k nym -g /home/ubuntu/pool_transactions_genesis >/dev/null 2>&1"
+export CHAOS_LOAD_COMMAND="sudo python3 /home/ubuntu/indy-node/scripts/performance/perf_load/perf_processes.py -l ${CHAOS_LOAD_BATCHES_PER_SECOND} -c ${CHAOS_LOAD_CLIENT_COUNT} -n ${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT} -b ${CHAOS_LOAD_TOTAL_TRANSACTIONS} -k nym -g /home/ubuntu/pool_transactions_genesis --load_time ${CHAOS_LOAD_GENERATION_TIMEOUT} >/dev/null 2>&1"
 export CHAOS_LOAD_COMMAND_TIMEOUT=120
 export CHAOS_PAUSE_BEFORE_SYNCED_CHECK=300
 export CHAOS_CLEANUP=
@@ -30,6 +34,10 @@ usage(){
     echo " required arguments: None"
     echo " optional arguments:"
 
+    echo "   --load-batches-per-second"
+    echo "       The number of batches to produce per second across all clients."
+    echo "       Default: '${CHAOS_LOAD_BATCHES_PER_SECOND}'"
+    echo "       Valid Input: Any positive number >= 1"
     echo "   --load-client-nodes"
     echo "       A JSON list of client node names to include in the experiment."
     echo "         Each of these clients will be used to generate load during the"
@@ -38,6 +46,10 @@ usage(){
     echo "   --load-clients-per-node"
     echo "       The number of client processes to spawn on each of the client nodes."
     echo "       Default: '${CHAOS_LOAD_CLIENT_COUNT}'"
+    echo "       Valid Input: Any positive number >= 1"
+    echo "   --load-total-transactions"
+    echo "       The total number of transactions to generate."
+    echo "       Default: '${CHAOS_LOAD_TOTAL_TRANSACTIONS}'"
     echo "       Valid Input: Any positive number >= 1"
     echo "   --load-transactions-per-client"
     echo "       The number of transactions to generate by each client processes."
@@ -87,11 +99,12 @@ usage(){
     echo "       Default: ${CHAOS_GENESIS_FILE}"
     echo "   -h|--help"
     echo "       Print script help/usage"
-    echo "   -n|--validator-nodes"
-    echo "       A JSON list of node names to include in the experiment. Usually"
-    echo "         the complete list from the genesis file. TODO: derive default"
-    echo "         from genesis file."
-    echo "       Default: '${CHAOS_VALIDATOR_NODES}'"
+    echo "   -i|--ssh-config-file"
+    echo "       Path to the ssh config file (see 'man ssh_config') that maps a"
+    echo "       validator node Host names (alias used in the genesis file) to"
+    echo "       their respective , default User, Hostname (IP address in this"
+    echo "       case and Identify File (i.e. PEM file)."
+    echo "       Default: ${CHAOS_SSH_CONFIG_FILE}"
     echo "   -t|--write-nym-timeout"
     echo "       How long to wait (seconds) before timing out while writing a NYM"
     echo "         transaction."
@@ -131,6 +144,12 @@ do
 key="$1"
 
 case $key in
+    --load-batches-per-second)
+    export CHAOS_LOAD_BATCHES_PER_SECOND=$2
+    export CHAOS_LOAD_GENERATION_TIMEOUT=$((CHAOS_LOAD_TOTAL_TRANSACTIONS / ( CHAOS_LOAD_BATCHES_PER_SECOND * CHAOS_LOAD_CLIENT_COUNT * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT )))
+    shift # past argument
+    shift # past value
+    ;;
     --load-client-nodes)
     export CHAOS_LOAD_CLIENTS=$2
     shift # past argument
@@ -138,11 +157,19 @@ case $key in
     ;;
     --load-clients-per-node)
     export CHAOS_LOAD_CLIENT_COUNT=$2
+    export CHAOS_LOAD_GENERATION_TIMEOUT=$((CHAOS_LOAD_TOTAL_TRANSACTIONS / ( CHAOS_LOAD_BATCHES_PER_SECOND * CHAOS_LOAD_CLIENT_COUNT * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT )))
+    shift # past argument
+    shift # past value
+    ;;
+    --load-total-transactions)
+    export CHAOS_LOAD_TOTAL_TRANSACTIONS=$2
+    export CHAOS_LOAD_GENERATION_TIMEOUT=$((CHAOS_LOAD_TOTAL_TRANSACTIONS / ( CHAOS_LOAD_BATCHES_PER_SECOND * CHAOS_LOAD_CLIENT_COUNT * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT )))
     shift # past argument
     shift # past value
     ;;
     --load-transactions-per-client)
     export CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=$2
+    export CHAOS_LOAD_GENERATION_TIMEOUT=$((CHAOS_LOAD_TOTAL_TRANSACTIONS / ( CHAOS_LOAD_BATCHES_PER_SECOND * CHAOS_LOAD_CLIENT_COUNT * CHAOS_LOAD_TRANSACTIONS_PER_CLIENT )))
     shift # past argument
     shift # past value
     ;;
@@ -180,6 +207,11 @@ case $key in
     usage
     shift # past argument
     ;;
+    -i|--ssh-config-file)
+    export CHAOS_SSH_CONFIG_FILE="$2"
+    shift # past argument
+    shift # past value
+    ;;
     -c|--cleanup)
     value="$2"
     case $value in
@@ -194,11 +226,6 @@ case $key in
         usage
         ;;
     esac
-    shift # past argument
-    shift # past value
-    ;;
-    -n|--validator-nodes)
-    export CHAOS_VALIDATOR_NODES='$2'
     shift # past argument
     shift # past value
     ;;
@@ -222,12 +249,15 @@ set -- "${POSITIONAL[@]}" # restore positional parameters. May be useful for cus
 
 echo CHAOS_SEED=${CHAOS_SEED}
 echo CHAOS_GENESIS_FILE=${CHAOS_GENESIS_FILE}
-echo CHAOS_VALIDATOR_NODES=${CHAOS_VALIDATOR_NODES}
+echo CHAOS_SSH_CONFIG_FILE=${CHAOS_SSH_CONFIG_FILE}
 echo CHAOS_WRITE_NYM_TIMEOUT=${CHAOS_WRITE_NYM_TIMEOUT}
 echo CHAOS_CATCHUP_COUNT=${CHAOS_CATCHUP_COUNT}
 echo CHAOS_LOAD_CLIENTS=${CHAOS_LOAD_CLIENTS}
+echo CHAOS_LOAD_BATCHES_PER_SECOND=${CHAOS_LOAD_BATCHES_PER_SECOND}
 echo CHAOS_LOAD_CLIENT_COUNT=${CHAOS_LOAD_CLIENT_COUNT}
 echo CHAOS_LOAD_TRANSACTIONS_PER_CLIENT=${CHAOS_LOAD_TRANSACTIONS_PER_CLIENT}
+echo CHAOS_LOAD_TOTAL_TRANSACTIONS=${CHAOS_LOAD_TOTAL_TRANSACTIONS}
+echo CHAOS_LOAD_GENERATION_TIMEOUT=${CHAOS_LOAD_GENERATION_TIMEOUT}
 echo CHAOS_LOAD_TRANSACTIONS=${CHAOS_LOAD_TRANSACTIONS}
 echo CHAOS_LOAD_COMMAND=${CHAOS_LOAD_COMMAND}
 echo CHAOS_LOAD_COMMAND_TIMEOUT=${CHAOS_LOAD_COMMAND_TIMEOUT}

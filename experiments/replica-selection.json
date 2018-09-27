@@ -16,6 +16,10 @@
             "type": "env",
             "key": "CHAOS_GENESIS_FILE"
         },
+        "ssh_config_file": {
+            "type": "env",
+            "key": "CHAOS_SSH_CONFIG_FILE"
+        },
         "write_nym_timeout": {
             "type": "env",
             "key": "CHAOS_WRITE_NYM_TIMEOUT"
@@ -58,11 +62,12 @@
                 "func": "stop_n_nodes",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "number_of_nodes": 1,
                     "selection_strategy": 2,
-                    "include_primary": false,
-                    "include_backup_primaries": true,
-                    "include_other_nodes": false,
+                    "include_primary": "false",
+                    "include_backup_primaries": "true",
+                    "include_other_nodes": "false",
                     "stop_strategy": 1
                 }
             }
@@ -75,7 +80,8 @@
                 "module": "chaosindy.actions.node",
                 "func": "stop_primary",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -88,6 +94,7 @@
                 "func": "start_stopped_primary_after_view_change",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "max_checks_for_primary": 20,
                     "sleep_between_checks": 60,
                     "start_backup_primaries": false
@@ -102,9 +109,10 @@
             "provider": {
                 "type": "python",
                 "module": "chaosindy.actions.node",
-                "func": "start_stopped_backup_primaries",
+                "func": "start_stopped_nodes",
                 "arguments": {
-                    "genesis_file": "${genesis_file}"
+                    "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}"
                 }
             }
         },
@@ -117,6 +125,7 @@
                 "func": "start_stopped_primary",
                 "arguments": {
                     "genesis_file": "${genesis_file}",
+                    "ssh_config_file": "${ssh_config_file}",
                     "start_backup_primaries": false
                 }
             }
