@@ -455,17 +455,20 @@ STACK_COMPANION = 1
 ```
 
 # Executing Experiments
-Each chaosindy experiment has a an associated “run” script (see scripts/run-*)
-and the run.py script (work in progress) leverages these to allow your to create
-a suite/batch (one or any combinations) of experiments to run.
+Each chaosindy experiment has an associated “run” script (see scripts/run-*)
+and the run.py script (work in progress) leverages these to allow a user to
+create a suite/batch (one or more) of experiments to run.
 
 Experiments can be executed from any host where the following is true:
 - chaosindy is installed and configured (~/.ssh/config, etc…)
-- All client and validator nodes scripts are reachable.
+- All client and validator nodes are reachable.
 
 run.py TODOs:
 * Create a report from the journal.json output from each experiment and include
-  the following for each experiment derived from each experiment's journal.json:
+  the following for each experiment derived from each experiment's journal.json.
+  Currently, each time run.py is invoked, a temporary directory is created and
+  a "report" file is created/updated in that directory as experiments execute.
+  The directory name/location is printed to stdout.
   * For each experiment:
     * Title: ['experiment']['title']
     * Description: ['experiment']['description]
@@ -502,6 +505,8 @@ run.py TODOs:
       the experiment's method "fail"?
     * On failure (optionally - overall status failure), capture node state and
       include deposit location S3/filesystem in the report.
+* Allow the user to specify an output directory. Currently, a temporary
+  directory is generated each time run.py is invoked.
 * Complete and test S3 integration
   * On individual experiment failure, capture node state and upload to S3
   * Upload generated report to S3
